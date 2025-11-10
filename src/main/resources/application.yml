@@ -1,0 +1,37 @@
+# ??????????
+server:
+  port: 8082
+
+shiro:
+  ws:
+    server:
+      enable: true
+      url: ""
+  plugin-list:
+    - com.bot.plugin.MainPlugin
+
+spring:
+  application:
+    name: loli_bot
+
+  #加载配置环境
+  profiles:
+    active: local
+
+  #数据库配置
+
+
+#langchain4j配置
+langchain4j:
+  community:
+    dashscope:
+      chat-model:
+        model-name: ${langchain4j.community.dashscope.chat-model.model-name}
+        api-key: ${langchain4j.community.dashscope.chat-model.api-key}
+      embedding-model:
+        model-name: text-embedding-v4
+        api-key: ${langchain4j.community.dashscope.chat-model.api-key}
+      streaming-chat-model:
+        model-name: ${langchain4j.community.dashscope.chat-model.model-name}
+        api-key: ${langchain4j.community.dashscope.chat-model.api-key}
+
