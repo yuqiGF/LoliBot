@@ -3,7 +3,6 @@ package com.bot.utils.ai;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.bot.utils.common.HttpClientPool;
-import jakarta.annotation.Resource;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -13,17 +12,16 @@ import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.stereotype.Component;
 
 import java.nio.charset.StandardCharsets;
 
 /**
  * 视频生成器（通义万相）
  */
+@Component
 public class VideoGenerator {
 
-    @Resource
-    private VideoGenerator videoGenerator;
-    
     private static final Logger logger = LoggerFactory.getLogger(VideoGenerator.class);
     
     private static final String API_CREATE = "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis";

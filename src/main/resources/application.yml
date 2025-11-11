@@ -8,13 +8,16 @@ shiro:
       enable: true
       url: ""
   plugin-list:
-    - com.bot.plugin.MainPlugin
+    # - com.bot.plugin.MainPlugin  # 已删除 MainPlugin，移除注册
+
 
 spring:
   application:
     name: loli_bot
 
-  #加载配置环境
+  #⭐加载配置环境
+  config:
+    import: optional:application-local.yml
   profiles:
     active: local
 
@@ -22,16 +25,18 @@ spring:
 
 
 #langchain4j配置
+# 注意：敏感信息在application-local.yml中配置，该文件不应该提交到git
 langchain4j:
   community:
     dashscope:
       chat-model:
-        model-name: ${langchain4j.community.dashscope.chat-model.model-name}
-        api-key: ${langchain4j.community.dashscope.chat-model.api-key}
+        # 默认值仅用于开发环境，生产环境请使用环境变量或本地配置文件
+        model-name: qwen3-max-preview
+        api-key: 
       embedding-model:
         model-name: text-embedding-v4
-        api-key: ${langchain4j.community.dashscope.chat-model.api-key}
+        api-key: 
       streaming-chat-model:
-        model-name: ${langchain4j.community.dashscope.chat-model.model-name}
-        api-key: ${langchain4j.community.dashscope.chat-model.api-key}
+        model-name: qwen3-max-preview
+        api-key:
 
