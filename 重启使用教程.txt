@@ -1,0 +1,37 @@
+[2025-11-11 15:18:00]: 解压QQ (.rpm)成功 
+[2025-11-11 15:18:00]: 正在更新用户QQ配置...
+[2025-11-11 15:18:00]: 未找到用户配置目录 /root/.config/QQ/versions, QQ首次启动时会自动创建。 
+[2025-11-11 15:18:00]: 更新用户QQ配置完成。
+[2025-11-11 15:18:00]: 准备恢复 Napcat 配置从 /tmp/napcat_config_backup_1762845454... 
+[2025-11-11 15:18:00]: Napcat 配置恢复成功到 /root/Napcat/opt/QQ/resources/app/app_launcher/napcat/config 
+[2025-11-11 15:18:00]: 清理备份目录 /tmp/napcat_config_backup_1762845454... 
+[2025-11-11 15:18:00]: 最新NapCatQQ版本: v4.9.35 
+[2025-11-11 15:18:00]: 强制重装模式...
+[2025-11-11 15:18:00]: 正在移动文件...
+[2025-11-11 15:18:01]: 移动文件成功
+[2025-11-11 15:18:01]: 正在修补文件...
+[2025-11-11 15:18:01]: 修补文件成功
+[2025-11-11 15:18:01]: 正在修改QQ启动配置...
+[2025-11-11 15:18:01]: 修改QQ启动配置成功...
+[2025-11-11 15:18:01]: 跳过安装/更新 TUI-CLI (用户未选择或使用 --cli n)。 
+[2025-11-11 15:18:02]: 
+- Shell (Rootless) 安装完成 - 
+[2025-11-11 15:18:02]:  
+[2025-11-11 15:18:02]: 安装位置:
+[2025-11-11 15:18:02]:   /root/Napcat
+[2025-11-11 15:18:02]:  
+[2025-11-11 15:18:02]: 启动 Napcat (无需 sudo): 
+[2025-11-11 15:18:03]:   xvfb-run -a /root/Napcat/opt/QQ/qq --no-sandbox  
+[2025-11-11 15:18:03]:  
+[2025-11-11 15:18:03]: 后台运行 Napcat (使用 screen, 无需 sudo): 
+[2025-11-11 15:18:03]:   启动: screen -dmS napcat bash -c "xvfb-run -a /root/Napcat/opt/QQ/qq --no-sandbox " 
+[2025-11-11 15:18:03]:   带账号启动: screen -dmS napcat bash -c "xvfb-run -a /root/Napcat/opt/QQ/qq --no-sandbox  -q QQ号码" 
+[2025-11-11 15:18:03]:   附加到会话: screen -r napcat (按 Ctrl+A 然后按 D 分离) 
+[2025-11-11 15:18:03]:   停止会话: screen -S napcat -X quit 
+[2025-11-11 15:18:03]:  
+[2025-11-11 15:18:03]: Napcat 相关信息: 
+[2025-11-11 15:18:03]:   插件位置: /root/Napcat/opt/QQ/resources/app/app_launcher/napcat 
+[2025-11-11 15:18:03]:   WebUI Token: 查看 /root/Napcat/opt/QQ/resources/app/app_launcher/napcat/config/webui.json 文件获取 
+[2025-11-11 15:18:03]:  
+[2025-11-11 15:18:03]: 未安装 TUI-CLI 工具。如需使用便捷命令管理, 请重新运行安装脚本并选择安装 TUI-CLI (--cli y)。 
+[2025-11-11 15:18:03]: --

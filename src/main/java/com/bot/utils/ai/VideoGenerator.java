@@ -3,6 +3,7 @@ package com.bot.utils.ai;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.bot.utils.common.HttpClientPool;
+import jakarta.annotation.Resource;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
@@ -11,6 +12,7 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.util.EntityUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.nio.charset.StandardCharsets;
 
@@ -18,12 +20,16 @@ import java.nio.charset.StandardCharsets;
  * 视频生成器（通义万相）
  */
 public class VideoGenerator {
+
+    @Resource
+    private VideoGenerator videoGenerator;
     
     private static final Logger logger = LoggerFactory.getLogger(VideoGenerator.class);
     
     private static final String API_CREATE = "https://dashscope.aliyuncs.com/api/v1/services/aigc/video-generation/video-synthesis";
     private static final String API_QUERY = "https://dashscope.aliyuncs.com/api/v1/tasks/";
-    private static final String API_KEY = "sk-d9abd749d4294d40bd71cceb85737cc6";
+    @Value("${langchain4j.community.dashscope.chat-model.api-key}")
+    private String API_KEY;
     
     private static final int MAX_POLL_TIMES = 20;
     private static final int POLL_INTERVAL_MS = 15000;
@@ -31,10 +37,10 @@ public class VideoGenerator {
     /**
      * 生成视频
      */
-    public static String generate(String prompt, String imageUrl) {
+    public String generate(String prompt, String imageUrl) {
         try (CloseableHttpClient client = HttpClientPool.createClient()) {
             // 创建任务
-            String taskId = createTask(client, prompt, imageUrl);
+            String taskId =  createTask(client, prompt, imageUrl);
             if (taskId == null) {
                 return null;
             }
@@ -51,7 +57,7 @@ public class VideoGenerator {
     /**
      * 创建视频生成任务
      */
-    private static String createTask(CloseableHttpClient client, String prompt, String imageUrl) {
+    private String createTask(CloseableHttpClient client, String prompt, String imageUrl) {
         try {
             HttpPost post = new HttpPost(API_CREATE);
             post.setHeader("Content-Type", "application/json");
@@ -92,7 +98,7 @@ public class VideoGenerator {
     /**
      * 轮询任务结果
      */
-    private static String pollResult(CloseableHttpClient client, String taskId) {
+    private String pollResult(CloseableHttpClient client, String taskId) {
         try {
             for (int i = 0; i < MAX_POLL_TIMES; i++) {
                 Thread.sleep(POLL_INTERVAL_MS);

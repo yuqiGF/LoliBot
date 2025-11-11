@@ -282,6 +282,9 @@ public class MainPlugin extends BotPlugin {
      * 视频生成功能 - 当@机器人并包含视频生成指令时触发
      * 在普通聊天处理器之前处理视频生成请求
      */
+    @Resource
+    private VideoGenerator videoGenerator;
+
     @GroupMessageHandler
     @MessageHandlerFilter(at = AtEnum.NEED) // 视频生成处理器
     public void generateVideoOnAt(Bot bot, GroupMessageEvent event) {
@@ -317,7 +320,7 @@ public class MainPlugin extends BotPlugin {
                 bot.sendGroupMsg(event.getGroupId(), processingMsg, false);
 
                 // 调用视频生成API（异步调用，会自动轮询获取结果）
-                String videoUrl = VideoGenerator.generate(message, imgUrl);
+                String videoUrl = videoGenerator.generate(message, imgUrl);
 
                 if (videoUrl != null) {
                     logger.info("视频生成成功: {}", videoUrl);
