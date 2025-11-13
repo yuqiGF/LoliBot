@@ -3,6 +3,8 @@ package com.bot.utils;
 import com.bot.utils.crawler.MoeGirlCrawler;
 import org.junit.jupiter.api.Test;
 
+import java.util.ArrayList;
+
 /**
  * 萌娘百科爬虫修复测试
  */

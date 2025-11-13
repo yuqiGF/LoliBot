@@ -83,6 +83,7 @@ public class LLMPlugin extends BotPlugin {
         String info = deepSeekClient.chat(event.getMessage());
         String msg = MsgUtils.builder().text(info).build();
         bot.sendGroupMsg(event.getGroupId(),msg,false);
+        
     }
 
 
