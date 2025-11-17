@@ -35,8 +35,6 @@ public class LLMPlugin extends BotPlugin {
     public void deepSeekTalk(Bot bot, GroupMessageEvent event){
         //用正则表达式把头去掉
         String message = event.getMessage().replaceFirst("\\[CQ:.*?\\]\\s*", "");
-//        System.out.println(message);
-//        String res = DeepSeekClient.chat(message);
         String res = "";
         if (message.isEmpty()){
             //光艾特 不发消息

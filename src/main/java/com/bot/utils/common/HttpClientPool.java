@@ -68,6 +68,7 @@ public class HttpClientPool {
                 
         return HttpClients.custom()
                 .setConnectionManager(getConnectionManager())
+                .setConnectionManagerShared(true)
                 .setDefaultRequestConfig(requestConfig)
                 .setUserAgent(getRandomUserAgent())
                 .evictExpiredConnections()
