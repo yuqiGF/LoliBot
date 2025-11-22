@@ -43,7 +43,7 @@ public class RagConfig {
         
         // 文档向量化并存储
         EmbeddingStoreIngestor ingestor = EmbeddingStoreIngestor.builder()
-                .documentSplitter(splitter)
+                .documentSplitter(splitter) 
                 .textSegmentTransformer(segment -> 
                     TextSegment.from(
                         segment.metadata().getString("file_name") + "\n" + segment.text(),
