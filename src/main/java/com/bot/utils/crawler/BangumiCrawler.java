@@ -31,6 +31,7 @@ public class BangumiCrawler {
     private static final int MAX_RETRIES = 3;
     private static final String CALENDAR_API = "https://api.bgm.tv/calendar";
     private static final String SEARCH_API = "https://api.bgm.tv/v0/search/characters";
+    private static final String BANGUMI_TOKEN = "D0D7F18A7055D2BF97C2B49F7460D26F";
     
     // 共享的 HTTP 客户端实例（使用连接池，不需要关闭）
     private static volatile CloseableHttpClient sharedClient;
@@ -64,39 +65,39 @@ public class BangumiCrawler {
      * 获取今日新番
      */
     public static String getTodayAnime() {
-        System.out.println("[Bangumi] 获取今日新番...");
-        
         try {
             // 使用共享的客户端实例（使用连接池，不需要关闭）
             CloseableHttpClient client = getSharedClient();
             
             // 获取今天是星期几（使用指定时区，不修改全局默认时区）
             Calendar calendar = Calendar.getInstance(TimeZone.getTimeZone("Asia/Shanghai"));
-            int weekday = (calendar.get(Calendar.DAY_OF_WEEK) + 5) % 7;
+            int dayOfWeek = calendar.get(Calendar.DAY_OF_WEEK);
             
-            System.out.println("[Bangumi] 当前星期: " + weekday);
+            // 转换Java的星期表示到Bangumi的星期表示
+            // Java: 1(周日), 2(周一), ..., 7(周六)
+            // Bangumi: 1(周一), 2(周二), ..., 7(周日)
+            int weekday;
+            if (dayOfWeek == 1) { // 周日
+                weekday = 7;
+            } else {
+                weekday = dayOfWeek - 1;
+            }
             
             // 请求 API
             String responseBody = requestWithRetry(client, CALENDAR_API);
             if (responseBody == null) {
-                System.err.println("[Bangumi] API请求失败，所有重试均已用尽");
                 return "获取新番失败喵~";
             }
-            
-            System.out.println("[Bangumi] API请求成功，响应长度: " + (responseBody != null ? responseBody.length() : 0));
             
             // 解析数据
             List<Anime> animeList = parseAnimeData(responseBody, weekday);
             
             // 格式化输出
             String result = formatAnimeList(animeList);
-            System.out.println("[Bangumi] 成功获取今日新番，共 " + animeList.size() + " 部");
             return result;
             
         } catch (Exception e) {
-            System.err.println("[Bangumi] 获取今日新番时发生异常: " + e.getMessage());
-            e.printStackTrace();
-            return "获取新番时出错喵~: " + e.getMessage();
+            return "获取新番时出错喵~";
         }
     }
     
@@ -104,8 +105,6 @@ public class BangumiCrawler {
      * 搜索角色
      */
     public static String searchCharacter(String characterName) {
-        System.out.println("[Bangumi] 搜索角色: " + characterName);
-        
         try {
             // 使用共享的客户端实例（使用连接池，不需要关闭）
             CloseableHttpClient client = getSharedClient();
@@ -113,6 +112,7 @@ public class BangumiCrawler {
             HttpPost httpPost = new HttpPost(SEARCH_API);
             httpPost.setHeader("Accept", "application/json");
             httpPost.setHeader("User-Agent", getRandomUserAgent());
+            httpPost.setHeader("Authorization", "Bearer " + BANGUMI_TOKEN);
             
             // 构建请求体
             JSONObject requestBody = new JSONObject();
@@ -131,13 +131,10 @@ public class BangumiCrawler {
             return parseCharacterInfo(responseBody);
             
         } catch (Exception e) {
-            System.err.println("[Bangumi] 搜索角色时发生异常: " + e.getMessage());
-            e.printStackTrace();
             return "搜索时出错喵~";
         }
     }
-    
-    // ==================== 私有辅助方法 ====================
+
     
     /**
      * 带重试的请求
@@ -148,6 +145,7 @@ public class BangumiCrawler {
                 HttpGet httpGet = new HttpGet(url);
                 httpGet.setHeader("User-Agent", getRandomUserAgent());
                 httpGet.setHeader("Accept", "application/json");
+                httpGet.setHeader("Authorization", "Bearer " + BANGUMI_TOKEN);
                 
                 System.out.println("[Bangumi] 尝试请求 (第 " + (i + 1) + "/" + MAX_RETRIES + " 次): " + url);
                 String result = executeRequest(client, httpGet);
@@ -224,13 +222,18 @@ public class BangumiCrawler {
         List<Anime> animeList = new ArrayList<>();
         
         try {
+            // 打印原始响应的前200个字符，帮助调试
+            System.out.println("[Bangumi] 原始响应前200字符: " + (json != null ? json.substring(0, Math.min(200, json.length())) : "null"));
+            
+            // 解析为JSONArray
             JSONArray weekData = JSON.parseArray(json);
             
             if (weekData == null || weekData.isEmpty()) {
                 System.out.println("[Bangumi] 数据为空或格式不正确");
-                // 尝试返回模拟数据
-                return generateMockAnimeData();
+                return animeList; // 返回空列表而不是模拟数据
             }
+            
+            System.out.println("[Bangumi] 成功解析为JSONArray，长度: " + weekData.size());
             
             boolean found = false;
             for (int i = 0; i < weekData.size(); i++) {
@@ -238,20 +241,29 @@ public class BangumiCrawler {
                     JSONObject dayData = weekData.getJSONObject(i);
                     JSONObject weekdayObj = dayData.getJSONObject("weekday");
                     
-                    if (weekdayObj != null && weekdayObj.getIntValue("id") == weekday) {
-                        JSONArray items = dayData.getJSONArray("items");
-                        for (int j = 0; j < items.size(); j++) {
-                            try {
-                                Anime anime = parseAnimeItem(items.getJSONObject(j));
-                                if (anime != null) {
-                                    animeList.add(anime);
+                    // 兼容不同的星期表示方式
+                    if (weekdayObj != null) {
+                        int dayId = weekdayObj.getIntValue("id");
+                        System.out.println("[Bangumi] 检测到星期ID: " + dayId + ", 当前需要星期ID: " + weekday);
+                        
+                        if (dayId == weekday) {
+                            JSONArray items = dayData.getJSONArray("items");
+                            System.out.println("[Bangumi] 找到对应星期的数据，包含 " + items.size() + " 部番剧");
+                            
+                            for (int j = 0; j < items.size(); j++) {
+                                try {
+                                    Anime anime = parseAnimeItem(items.getJSONObject(j));
+                                    if (anime != null) {
+                                        animeList.add(anime);
+                                        System.out.println("[Bangumi] 成功添加番剧: " + anime.getCnName());
+                                    }
+                                } catch (Exception e) {
+                                    System.err.println("[Bangumi] 解析第" + (j + 1) + "个番剧异常: " + e.getMessage());
                                 }
-                            } catch (Exception e) {
-                                System.err.println("[Bangumi] 解析第" + (j + 1) + "个番剧异常: " + e.getMessage());
                             }
+                            found = true;
+                            break;
                         }
-                        found = true;
-                        break;
                     }
                 } catch (Exception e) {
                     System.err.println("[Bangumi] 解析第" + (i + 1) + "天数据异常: " + e.getMessage());
@@ -260,103 +272,60 @@ public class BangumiCrawler {
             
             if (!found) {
                 System.out.println("[Bangumi] 未找到对应星期的数据，可能是格式变化");
-                // 尝试直接解析所有番剧（备选方案）
-                tryAlternativeParsing(json, animeList);
+                // 尝试备选解析方案
+                tryAlternativeParsing(json, animeList, weekday);
             }
             
-            // 如果仍然没有数据，使用模拟数据
-            if (animeList.isEmpty()) {
-                System.out.println("[Bangumi] 未解析到任何番剧数据，使用模拟数据");
-                return generateMockAnimeData();
-            }
-            
-            System.out.println("[Bangumi] 成功解析 " + animeList.size() + " 个番剧");
+            System.out.println("[Bangumi] 最终解析到 " + animeList.size() + " 部番剧");
             return animeList;
             
         } catch (Exception e) {
             System.err.println("[Bangumi] 解析JSON异常: " + e.getMessage());
             e.printStackTrace();
-            // 尝试备用解析方案，直接返回一些模拟数据
-            System.out.println("[Bangumi] 尝试提供模拟数据...");
-            return generateMockAnimeData();
+            return animeList; // 返回空列表而不是模拟数据
         }
     }
     
     /**
      * 备选解析方案
      */
-    private static void tryAlternativeParsing(String json, List<Anime> animeList) {
+    private static void tryAlternativeParsing(String json, List<Anime> animeList, int targetWeekday) {
         try {
             // 尝试不同的数据结构解析
             System.out.println("[Bangumi] 尝试备选解析方案...");
             
-            // 方案1: 直接尝试解析items数组
-            JSONObject root = JSON.parseObject(json);
-            if (root != null) {
-                JSONArray items = root.getJSONArray("items");
-                if (items != null) {
-                    for (int j = 0; j < items.size(); j++) {
-                        Anime anime = parseAnimeItem(items.getJSONObject(j));
-                        if (anime != null) {
-                            animeList.add(anime);
-                        }
-                    }
-                }
-            }
-            
-            // 如果还是没有数据，尝试方案2: 假设整个JSON是items数组
-            if (animeList.isEmpty()) {
-                JSONArray items = JSON.parseArray(json);
-                if (items != null) {
-                    for (int j = 0; j < items.size(); j++) {
-                        try {
-                            // 假设每个元素直接是番剧数据
-                            Anime anime = parseAnimeItem(items.getJSONObject(j));
-                            if (anime != null) {
-                                animeList.add(anime);
+            // 方案1: 遍历所有天的数据，查找匹配的星期
+            JSONArray weekData = JSON.parseArray(json);
+            if (weekData != null) {
+                for (int i = 0; i < weekData.size(); i++) {
+                    try {
+                        JSONObject dayData = weekData.getJSONObject(i);
+                        // 尝试直接获取air_weekday字段（针对items中的每个番剧）
+                        JSONArray items = dayData.getJSONArray("items");
+                        if (items != null) {
+                            for (int j = 0; j < items.size(); j++) {
+                                try {
+                                    JSONObject item = items.getJSONObject(j);
+                                    if (item.getIntValue("air_weekday") == targetWeekday) {
+                                        Anime anime = parseAnimeItem(item);
+                                        if (anime != null) {
+                                            animeList.add(anime);
+                                            System.out.println("[Bangumi] 备选方案添加番剧: " + anime.getCnName());
+                                        }
+                                    }
+                                } catch (Exception e) {
+                                    System.err.println("[Bangumi] 备选方案解析第" + (j + 1) + "个番剧异常: " + e.getMessage());
+                                }
                             }
-                        } catch (Exception ignored) {
                         }
+                    } catch (Exception e) {
+                        System.err.println("[Bangumi] 备选方案解析第" + (i + 1) + "天数据异常: " + e.getMessage());
                     }
                 }
             }
         } catch (Exception e) {
             System.err.println("[Bangumi] 备选解析失败: " + e.getMessage());
         }
-    }
-    
-    /**
-     * 生成模拟番剧数据（当API不可用时的备用方案）
-     */
-    private static List<Anime> generateMockAnimeData() {
-        List<Anime> mockData = new ArrayList<>();
-        
-        // 添加一些热门番剧作为模拟数据
-        Anime anime1 = new Anime();
-        anime1.setCnName("我的青春恋爱物语果然有问题");
-        anime1.setScore("9.5");
-        anime1.setImageUrl("https://lain.bgm.tv/pic/cover/l/39/16/164960_457c9c94.jpg");
-        mockData.add(anime1);
-        
-        Anime anime2 = new Anime();
-        anime2.setCnName("辉夜大小姐想让我告白");
-        anime2.setScore("9.3");
-        anime2.setImageUrl("https://lain.bgm.tv/pic/cover/l/40/fc/234397_36288d67.jpg");
-        mockData.add(anime2);
-        
-        Anime anime3 = new Anime();
-        anime3.setCnName("鬼灭之刃");
-        anime3.setScore("9.7");
-        anime3.setImageUrl("https://lain.bgm.tv/pic/cover/l/92/3d/270027_11f68806.jpg");
-        mockData.add(anime3);
-        
-        Anime anime4 = new Anime();
-        anime4.setCnName("进击的巨人");
-        anime4.setScore("9.6");
-        anime4.setImageUrl("https://lain.bgm.tv/pic/cover/l/b2/5e/84193_b25eb90c.jpg");
-        mockData.add(anime4);
-        
-        return mockData;
     }
     
     /**
@@ -392,27 +361,100 @@ public class BangumiCrawler {
      */
     private static Anime parseAnimeItem(JSONObject item) {
         try {
-            Anime anime = new Anime();
-            anime.setCnName(item.getString("name_cn"));
+            System.out.println("[Bangumi] 开始解析番剧项: " + item.toJSONString());
             
-            // 如果中文名为空，使用原名
-            if (anime.getCnName() == null || anime.getCnName().isEmpty()) {
-                anime.setCnName(item.getString("name"));
+            Anime anime = new Anime();
+            
+            // 尝试多种可能的名称字段
+            String cnName = null;
+            String name = null;
+            
+            // 首先尝试name_cn字段
+            try {
+                cnName = item.getString("name_cn");
+                System.out.println("[Bangumi] 获取name_cn: " + cnName);
+            } catch (Exception e) {
+                System.err.println("[Bangumi] 无法获取name_cn: " + e.getMessage());
+            }
+            
+            // 尝试name字段
+            try {
+                name = item.getString("name");
+                System.out.println("[Bangumi] 获取name: " + name);
+            } catch (Exception e) {
+                System.err.println("[Bangumi] 无法获取name: " + e.getMessage());
+            }
+            
+            // 设置中文名，如果为空则使用原名
+            if (cnName != null && !cnName.isEmpty() && !"null".equals(cnName)) {
+                anime.setCnName(cnName);
+            } else if (name != null && !name.isEmpty() && !"null".equals(name)) {
+                anime.setCnName(name);
+            } else {
+                anime.setCnName("未知番剧");
+                System.out.println("[Bangumi] 无法获取番剧名称，设置为'未知番剧'");
             }
             
             // 获取评分
-            JSONObject rating = item.getJSONObject("rating");
-            anime.setScore(rating != null ? rating.getString("score") : "暂无评分");
-            
-            // 获取图片
-            JSONObject images = item.getJSONObject("images");
-            if (images != null) {
-                anime.setImageUrl(images.getString("large"));
+            String score = "暂无评分";
+            try {
+                JSONObject rating = item.getJSONObject("rating");
+                if (rating != null) {
+                    // 尝试多种可能的评分字段
+                    if (rating.containsKey("score")) {
+                        score = rating.getBigDecimal("score").toString();
+                    } else if (rating.containsKey("total")) {
+                        score = rating.getString("total");
+                    }
+                    System.out.println("[Bangumi] 获取评分: " + score);
+                }
+            } catch (Exception e) {
+                System.err.println("[Bangumi] 无法获取评分: " + e.getMessage());
             }
             
+            // 确保评分为有效字符串
+            if (score == null || score.isEmpty() || "null".equals(score)) {
+                score = "null";
+            }
+            anime.setScore(score);
+            
+            // 尝试多种可能的图片字段
+            String imageUrl = null;
+            
+            try {
+                // 尝试images字段
+                JSONObject images = item.getJSONObject("images");
+                if (images != null) {
+                    // 尝试不同尺寸的图片
+                    if (images.containsKey("large")) {
+                        imageUrl = images.getString("large");
+                    } else if (images.containsKey("medium")) {
+                        imageUrl = images.getString("medium");
+                    } else if (images.containsKey("small")) {
+                        imageUrl = images.getString("small");
+                    }
+                    System.out.println("[Bangumi] 获取图片URL: " + imageUrl);
+                }
+            } catch (Exception e) {
+                System.err.println("[Bangumi] 无法获取图片URL: " + e.getMessage());
+            }
+            
+            // 设置图片URL
+            if (imageUrl != null && !imageUrl.isEmpty() && !"null".equals(imageUrl)) {
+                // 去除可能的空格和换行符
+                imageUrl = imageUrl.trim();
+                anime.setImageUrl(imageUrl);
+            }
+            
+            System.out.println("[Bangumi] 解析完成: 名称='" + anime.getCnName() + "', 评分='" + anime.getScore() + "'");
             return anime;
         } catch (Exception e) {
-            return null;
+            System.err.println("[Bangumi] 解析番剧项异常: " + e.getMessage());
+            // 返回带有错误信息的番剧对象，而不是null
+            Anime anime = new Anime();
+            anime.setCnName("解析错误的番剧");
+            anime.setScore("解析错误");
+            return anime;
         }
     }
     
@@ -430,7 +472,9 @@ public class BangumiCrawler {
             sb.append("【").append(i + 1).append("】 ").append(anime.getCnName()).append("\n");
             sb.append("                                bgm：").append(anime.getScore()).append("\n");
             if (anime.getImageUrl() != null) {
-                sb.append("图片: ").append(anime.getImageUrl()).append("\n");
+                // 去除图片URL中可能的额外空格和反引号
+                String cleanImageUrl = anime.getImageUrl().replace(" `", "").replace("` ", "").replace("`", "");
+                sb.append("图片: ").append(cleanImageUrl).append("\n");
             }
             sb.append("\n");
         }
