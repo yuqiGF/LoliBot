@@ -92,12 +92,49 @@ public class BangumiCrawler {
             // 解析数据
             List<Anime> animeList = parseAnimeData(responseBody, weekday);
             
+            // 按评分降序排序番剧列表（已注释掉，直接返回所有番剧）
+            // sortAnimeByScoreDesc(animeList);
+            
             // 格式化输出
             String result = formatAnimeList(animeList);
             return result;
             
         } catch (Exception e) {
             return "获取新番时出错喵~";
+        }
+    }
+    
+    /**
+     * 按评分降序排序番剧列表
+     */
+    private static void sortAnimeByScoreDesc(List<Anime> animeList) {
+        animeList.sort((a1, a2) -> {
+            try {
+                // 尝试解析评分
+                Double score1 = parseScore(a1.getScore());
+                Double score2 = parseScore(a2.getScore());
+                
+                // 降序排序，高分在前
+                return score2.compareTo(score1);
+            } catch (Exception e) {
+                // 排序出错时保持原顺序
+                return 0;
+            }
+        });
+    }
+    
+    /**
+     * 解析评分为Double
+     * 处理"暂无评分"、"null"等特殊情况
+     */
+    private static Double parseScore(String scoreStr) {
+        if (scoreStr == null || scoreStr.isEmpty() || "null".equals(scoreStr) || "暂无评分".equals(scoreStr) || "解析错误".equals(scoreStr)) {
+            return 0.0; // 无评分的番剧排在最后
+        }
+        try {
+            return Double.parseDouble(scoreStr);
+        } catch (NumberFormatException e) {
+            return 0.0; // 解析失败的评分视为0
         }
     }
     
@@ -459,7 +496,7 @@ public class BangumiCrawler {
     }
     
     /**
-     * 格式化番剧列表
+     * 格式化番剧列表（只显示评分最高的前10部）
      */
     private static String formatAnimeList(List<Anime> animeList) {
         if (animeList.isEmpty()) {
@@ -467,17 +504,26 @@ public class BangumiCrawler {
         }
         
         StringBuilder sb = new StringBuilder("今日新番更新\n\n");
-        for (int i = 0; i < animeList.size(); i++) {
+        
+        // 直接显示所有番剧（不再限制为前10部）
+        int displayCount = animeList.size();
+        
+        for (int i = 0; i < displayCount; i++) {
             Anime anime = animeList.get(i);
             sb.append("【").append(i + 1).append("】 ").append(anime.getCnName()).append("\n");
             sb.append("                                bgm：").append(anime.getScore()).append("\n");
             if (anime.getImageUrl() != null) {
-                // 去除图片URL中可能的额外空格和反引号
-                String cleanImageUrl = anime.getImageUrl().replace(" `", "").replace("` ", "").replace("`", "");
+                // 彻底清理图片URL中的空格和反引号
+                String cleanImageUrl = anime.getImageUrl().trim() // 先去除首尾空格
+                                          .replaceAll("[`\s]+", ""); // 使用正则表达式移除所有反引号和空格
                 sb.append("图片: ").append(cleanImageUrl).append("\n");
             }
             sb.append("\n");
         }
+        
+        // 显示总数信息（适用于所有情况）
+        sb.append("共").append(animeList.size()).append("部新番\n\n");
+        
         sb.append("到点了，该看番了喵🥰🥰🥰~");
         return sb.toString();
     }
