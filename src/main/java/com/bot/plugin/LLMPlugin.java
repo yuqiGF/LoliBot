@@ -24,59 +24,62 @@ public class LLMPlugin extends BotPlugin {
     @Resource
     private DashScopeService dashScopeService;
 
-    /**
-     * DashScope灵积大模型
-     * @param bot
-     * @param event
-     */
-    //群聊消息
     @GroupMessageHandler
-    @MessageHandlerFilter(at = AtEnum.NEED) //被at了才会发送
+    @MessageHandlerFilter(at = AtEnum.NEED)
     public void qWenTalk(Bot bot, GroupMessageEvent event){
-        //用正则表达式把头去掉
-        String message = event.getMessage().replaceFirst("\\[CQ:.*?\\]\\s*", "");
-        String res = "";
-        if (message.isEmpty()){
-            //光艾特 不发消息
-            res = "Ciallo～(∠・ω< )⌒★";
-        }else {
-            //让ai认识发消息的人是谁
-//            message = message + "|" + event.getUserId();
 
-            //识别主人
-            if (event.getUserId() == 2328441709L){
-                res = dashScopeService.chatYuqiqi(message);
+        String message = event.getMessage().replaceFirst("\\[CQ:.*?\\]\\s*", "");
+        String res;
+
+        if (message.isEmpty()){
+            res = "Ciallo～(∠・ω< )⌒★";
+        } else {
+
+            //角色选择
+            Long userId = event.getUserId();
+            String role = "default";
+
+            if (userId.equals(2328441709L)) {
+                role = "yuqiqi";
+            } else if (userId.equals(3439831958L)) {
+                role = "xiaoyuan";
             }
-            //识别小圆？
-            else if (event.getUserId() == 3439831958L){
-                res = dashScopeService.chatXiaoYuan(message);
-            }
-            else {
-                event.getUserId();
-                res = dashScopeService.chat(message);
+
+            //  memoryId 组合策略
+            String memoryId = "qq:group:" + event.getGroupId() + ":" + userId + ":" + role;
+
+            switch (role){
+                case "yuqiqi":
+                    res = dashScopeService.chatYuqiqi(memoryId, message); break;
+                case "xiaoyuan":
+                    res = dashScopeService.chatXiaoYuan(memoryId, message); break;
+                default:
+                    res = dashScopeService.chat(memoryId, message);
             }
         }
-        String response = MsgUtils.builder()
-                .text(res)
-//                .at(event.getUserId())
-                .build();
-        bot.sendGroupMsg(event.getGroupId(),response,false);
+
+        bot.sendGroupMsg(
+                event.getGroupId(),
+                MsgUtils.builder().text(res).build(),
+                false
+        );
     }
 
-    /**
-     * 私聊ai
-     * @param bot
-     * @param event
-     */
     @PrivateMessageHandler
     public void aiTalk(Bot bot, PrivateMessageEvent event){
-        String msg = event.getMessage();
-        String response = dashScopeService.chatYuqiqi(msg);
-        String res = MsgUtils.builder()
-                .text(response)
-                .build();
-        bot.sendPrivateMsg(event.getUserId(),res,false);
+
+        String userId = String.valueOf(event.getUserId());
+        String memoryId = "qq:private:" + userId + ":yuqiqi";
+
+        String response = dashScopeService.chatYuqiqi(memoryId, event.getMessage());
+
+        bot.sendPrivateMsg(
+                event.getUserId(),
+                MsgUtils.builder().text(response).build(),
+                false
+        );
     }
+
 
     /**
      * DeepSeek模型

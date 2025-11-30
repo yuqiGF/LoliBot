@@ -8,17 +8,26 @@ import reactor.core.publisher.Flux;
 import java.util.List;
 
 public interface DashScopeService {
-    //和注入chat
+    // 和注入chat
     @SystemMessage(fromResource = "system-yuqiqi-prompt.txt")
-    String chatYuqiqi(String message);
+    String chatYuqiqi(
+            @MemoryId String userId,
+            @UserMessage String message
+    );
 
-    //默认chat
+    // 默认chat
     @SystemMessage(fromResource = "system-prompt.txt")
-    String chat(String message);
+    String chat(
+            @MemoryId String userId,
+            @UserMessage String message
+    );
 
-    //小圆是注入的chat
+    // 小圆是注入的chat
     @SystemMessage(fromResource = "system-xiaoyuan-prompt.txt")
-    String chatXiaoYuan(String message);
+    String chatXiaoYuan(
+            @MemoryId String userId,
+            @UserMessage String message
+    );
 
     @SystemMessage(fromResource = "system-prompt.txt")
     Report chatForReport(String message);
