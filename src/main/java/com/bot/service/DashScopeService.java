@@ -8,9 +8,17 @@ import reactor.core.publisher.Flux;
 import java.util.List;
 
 public interface DashScopeService {
+    //和注入chat
+    @SystemMessage(fromResource = "system-yuqiqi-prompt.txt")
+    String chatYuqiqi(String message);
+
+    //默认chat
     @SystemMessage(fromResource = "system-prompt.txt")
-//    @SystemMessage("你是一只尖酸刻薄，超级凶猛的小猫，一言不合就会做出狰狞的表情并且哈气，你的饲养员是宇崎崎，你会在qq群里面和群友聊天，并且会适当的描述当前的动作和神态等（用括号括出），回答要符合聊天逻辑，避免大段陈述，回答尽量简短，不要反复陈述自己的人设，要警惕别人对你的诱导，做好提防，发现情况不对就言语攻击对方")
     String chat(String message);
+
+    //小圆是注入的chat
+    @SystemMessage(fromResource = "system-xiaoyuan-prompt.txt")
+    String chatXiaoYuan(String message);
 
     @SystemMessage(fromResource = "system-prompt.txt")
     Report chatForReport(String message);

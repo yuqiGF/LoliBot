@@ -1,5 +1,6 @@
 package com.bot.config;
 
+import com.bot.guardrail.KeyWordsGuardrail;
 import com.bot.service.DashScopeService;
 import dev.langchain4j.memory.ChatMemory;
 import dev.langchain4j.memory.chat.MessageWindowChatMemory;
@@ -33,6 +34,9 @@ public class DashScopeConfig {
                 .chatMemoryProvider(memoryId -> MessageWindowChatMemory.withMaxMessages(20))
                 .contentRetriever(contentRetriever)
                 .streamingChatModel(qwenStreamingChatModel)
+                .inputGuardrails(
+                        new KeyWordsGuardrail()
+                )
                 .build();
     }
 }

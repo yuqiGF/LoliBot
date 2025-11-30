@@ -32,7 +32,7 @@ public class LLMPlugin extends BotPlugin {
     //群聊消息
     @GroupMessageHandler
     @MessageHandlerFilter(at = AtEnum.NEED) //被at了才会发送
-    public void deepSeekTalk(Bot bot, GroupMessageEvent event){
+    public void qWenTalk(Bot bot, GroupMessageEvent event){
         //用正则表达式把头去掉
         String message = event.getMessage().replaceFirst("\\[CQ:.*?\\]\\s*", "");
         String res = "";
@@ -41,8 +41,20 @@ public class LLMPlugin extends BotPlugin {
             res = "Ciallo～(∠・ω< )⌒★";
         }else {
             //让ai认识发消息的人是谁
-            message = message + "|" + event.getUserId();
-            res = dashScopeService.chat(message);
+//            message = message + "|" + event.getUserId();
+
+            //识别主人
+            if (event.getUserId() == 2328441709L){
+                res = dashScopeService.chatYuqiqi(message);
+            }
+            //识别小圆？
+            else if (event.getUserId() == 3439831958L){
+                res = dashScopeService.chatXiaoYuan(message);
+            }
+            else {
+                event.getUserId();
+                res = dashScopeService.chat(message);
+            }
         }
         String response = MsgUtils.builder()
                 .text(res)
@@ -59,7 +71,7 @@ public class LLMPlugin extends BotPlugin {
     @PrivateMessageHandler
     public void aiTalk(Bot bot, PrivateMessageEvent event){
         String msg = event.getMessage();
-        String response = dashScopeService.chat(msg);
+        String response = dashScopeService.chatYuqiqi(msg);
         String res = MsgUtils.builder()
                 .text(response)
                 .build();

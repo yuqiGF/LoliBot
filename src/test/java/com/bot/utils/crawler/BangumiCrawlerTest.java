@@ -8,4 +8,9 @@ class BangumiCrawlerTest {
     void getTodayAnime() {
         BangumiCrawler.getTodayAnime();
     }
+
+    @Test
+    void sorry(){
+        System.out.println("小圆最可爱了");
+    }
 }
