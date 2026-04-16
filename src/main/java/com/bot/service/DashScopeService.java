@@ -16,6 +16,7 @@ public interface DashScopeService {
             @UserMessage String message
     );
 
+
     // 自动接话
     @SystemMessage(fromResource = "/prompts/auto.txt")
     String autoChat(

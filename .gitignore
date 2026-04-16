@@ -1,7 +1,5 @@
 HELP.md
 target/
-src/main/resources/prompts/*
-src/main/java/com/bot/common/*
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
@@ -36,3 +34,5 @@ build/
 
 # 忽略特定的本地配置文件
 src/main/resources/application-local.yml
+/src/main/java/com/bot/common/
+/src/main/resources/prompts/
