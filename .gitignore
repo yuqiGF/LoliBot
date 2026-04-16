@@ -1,6 +1,7 @@
 HELP.md
 target/
-prompts/
+src/main/resources/prompts/*
+src/main/java/com/bot/common/*
 .mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

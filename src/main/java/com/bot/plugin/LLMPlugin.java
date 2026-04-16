@@ -1,5 +1,7 @@
 package com.bot.plugin;
 
+import com.bot.common.GroupNumber;
+import com.bot.common.QQNumber;
 import com.bot.model.User;
 import com.bot.service.DashScopeService;
 import com.bot.utils.ai.DeepSeekClient;
@@ -52,7 +54,7 @@ public class LLMPlugin extends BotPlugin {
         String message = event.getMessage().replaceFirst("\\[CQ:.*?\\]\\s*", "");
         String res;
         if (message.isEmpty()){
-            if (userId == 2328441709L){
+            if (Objects.equals(userId, QQNumber.MASTER)){
                 res = "狗修金 Ciallo～(∠・ω< )⌒★";
             }else {
                 int favorability = user.getFavorability(); //好感度
@@ -71,9 +73,9 @@ public class LLMPlugin extends BotPlugin {
         }
         else {
             //特殊用户
-            if (userId == 2589273457L){
+            if (Objects.equals(userId, QQNumber.BadGay)){
                 res = dashScopeService.chatBadGay(String.valueOf(userId), message);
-            } else if (userId == 1727504405L){
+            } else if (Objects.equals(userId, QQNumber.Bird)){
                 res = dashScopeService.chatBird(String.valueOf(userId) , message);
             }
             //正常好感度回应
@@ -117,7 +119,7 @@ public class LLMPlugin extends BotPlugin {
      * ⭐自动概率回复
      */
     @GroupMessageHandler
-    @MessageHandlerFilter(groups = {1084401296L,805757981L,342573438L})  //在指定群组监听
+    @MessageHandlerFilter(groups = {GroupNumber.AISI,GroupNumber.HUANYAN,GroupNumber.QIQI})  //在指定群组监听
     public void autoTalk(Bot bot , GroupMessageEvent event){
         Long userId = event.getUserId();  //用户id
 
@@ -165,8 +167,8 @@ public class LLMPlugin extends BotPlugin {
      */
     private void isUserExist(GroupMessageEvent event, Long userId) {
         userMap.computeIfAbsent(userId, id -> {
-            if (id == 1727504405L || id == 2328441709L) {
-                return new User(id, id == 1727504405L ? "鸟鸟" : "宇崎崎", 101, 4);
+            if (Objects.equals(id, QQNumber.Bird) || Objects.equals(id, QQNumber.MASTER)) {
+                return new User(id, Objects.equals(id, QQNumber.Bird) ? "鸟鸟" : "宇崎崎", 101, 4);
             }
             return new User(id, event.getSender().getNickname(), 47, 4);
         });
