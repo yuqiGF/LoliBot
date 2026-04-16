@@ -13,28 +13,29 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 /**
- * DashScope AI 服务配置
+ * DashScope AI 服务配置   组装可用的bean
  */
 @Configuration
 public class DashScopeConfig {
     
     @Resource
     private ChatModel qwenChatModel;
-    
+
+    //文档增强器（用于RAG）
     @Resource
     private ContentRetriever contentRetriever;
     
     @Resource
     private StreamingChatModel qwenStreamingChatModel;
 
-    @Bean
+    @Bean   //在这里编写并构建好bean
     public DashScopeService dashScopeService() {
         return AiServices.builder(DashScopeService.class)
                 .chatModel(qwenChatModel)
-                .chatMemoryProvider(memoryId -> MessageWindowChatMemory.withMaxMessages(20))
-                .contentRetriever(contentRetriever)
-                .streamingChatModel(qwenStreamingChatModel)
-                .inputGuardrails(
+                .chatMemoryProvider(memoryId -> MessageWindowChatMemory.withMaxMessages(20))  //记忆
+                .contentRetriever(contentRetriever)  //RAG
+                .streamingChatModel(qwenStreamingChatModel)  //流式模型
+                .inputGuardrails(  //护轨
                         new KeyWordsGuardrail()
                 )
                 .build();

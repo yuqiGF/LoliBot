@@ -12,6 +12,7 @@ import com.mikuac.shiro.dto.event.message.PrivateMessageEvent;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.regex.Matcher;
 
 @Component
@@ -48,4 +49,29 @@ public class CommonMessage extends BotPlugin {
 //        httpClient.execute(httpPost);
         bot.sendGroupMsg(event.getGroupId(),msg,false);
     }
+
+//    @GroupMessageHandler
+    public void loli(Bot bot, GroupMessageEvent event, Matcher matcher) throws IOException {
+        String message = event.getMessage();
+        if (message.contains("萝莉") || message.contains("yqq") || message.contains("loli")){
+            String msg = MsgUtils.builder()
+                    .at(2328441709L)
+                    .text("这里有Loli！")
+                    .build();
+            bot.sendGroupMsg(event.getGroupId(),msg,false);
+        }
+    }
+
+//    @GroupMessageHandler
+    public void fiction(Bot bot, GroupMessageEvent event, Matcher matcher) throws IOException {
+        String message = event.getMessage();
+        if (message.contains("小说")){
+            String msg = MsgUtils.builder()
+                    .at(1912600950L)
+                    .text("蛋挞快去写小说！")
+                    .build();
+            bot.sendGroupMsg(event.getGroupId(),msg,false);
+        }
+    }
+
 }

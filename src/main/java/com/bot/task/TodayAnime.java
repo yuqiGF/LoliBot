@@ -65,9 +65,9 @@ public class TodayAnime {
                 combinedMsg.text(textPart + "\n");
                 
                 // 添加图片（如果有）
-                if (imageUrl != null && !imageUrl.isEmpty()) {
-                    combinedMsg.img(imageUrl);
-                }
+//                if (imageUrl != null && !imageUrl.isEmpty()) {
+//                    combinedMsg.img(imageUrl);
+//                }
                 
                 // 番剧之间添加分隔
                 combinedMsg.text("\n");

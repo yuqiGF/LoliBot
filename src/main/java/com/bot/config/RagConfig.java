@@ -32,7 +32,11 @@ public class RagConfig {
 
     @Resource
     private EmbeddingStore<TextSegment> embeddingStore;
-    
+
+    /**
+     * 文档增强器配置⭐
+     * @return
+     */
     @Bean
     public ContentRetriever contentRetriever() {
         // 加载文档

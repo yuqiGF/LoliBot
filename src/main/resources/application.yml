@@ -31,7 +31,7 @@ langchain4j:
       chat-model:
         model-name: qwen3-max
         api-key:
-#        enable-search: true
+        enable-search: true
       embedding-model:
         model-name: text-embedding-v4
         api-key: 

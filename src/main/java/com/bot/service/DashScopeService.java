@@ -8,39 +8,49 @@ import reactor.core.publisher.Flux;
 import java.util.List;
 
 public interface DashScopeService {
-    // 和注入chat
-    @SystemMessage(fromResource = "system-yuqiqi-prompt.txt")
-    String chatYuqiqi(
-            @MemoryId String userId,
-            @UserMessage String message
-    );
 
     // 默认chat
-    @SystemMessage(fromResource = "system-prompt.txt")
+    @SystemMessage(fromResource = "/prompts/default.txt")
     String chat(
             @MemoryId String userId,
             @UserMessage String message
     );
 
-    // 小圆是注入的chat
-    @SystemMessage(fromResource = "system-xiaoyuan-prompt.txt")
-    String chatXiaoYuan(
-            @MemoryId String userId,
+    // 自动接话
+    @SystemMessage(fromResource = "/prompts/auto.txt")
+    String autoChat(
             @UserMessage String message
     );
 
-    @SystemMessage(fromResource = "system-prompt.txt")
-    Report chatForReport(String message);
+    // 特定的人的chat
+    @SystemMessage(fromResource = "/prompts/badgay.txt")
+    String chatBadGay(
+            @MemoryId String memoryId,
+            @UserMessage String message
+    );
+
+    /**
+     * 和鸟鸟对话
+     */
+    @SystemMessage(fromResource = "/prompts/bird.txt")
+    String chatBird(
+            @MemoryId String s,
+            @UserMessage String message
+    );
+
 
     //结构化输出  使用java的新特性 record构建类
     //报告
     record Report(String name, List<String> suggestionList){}
 
-//    @SystemMessage(fromResource = "system-prompt.txt")
+//    @SystemMessage(fromResource = "/prompts/default.txt")
+    Report chatForReport(String message);
+
+//    @SystemMessage(fromResource = "default.txt")
     Report chatWithRAG(String message);
 
     //流使输出
-    @SystemMessage(fromResource = "system-prompt.txt")
+    @SystemMessage(fromResource = "default.txt")
     Flux<String> chatString(@MemoryId int memoryId,@UserMessage String message);
 
 }

@@ -63,17 +63,16 @@ public class BangumiPlugin extends BotPlugin {
                     combinedMsg.text(textPart + "\n");
 
                     // 使用临时文件方式处理图片（不占用长期磁盘）
-                    if (imageUrl != null) {
-                        File tmpImg = downloadImageToTemp(imageUrl);
-                        if (tmpImg != null) {
-                            combinedMsg.img("file://" + tmpImg.getAbsolutePath());
-                            tmpImg.delete(); // 发送后立即删除
-                        } else {
-                            //⭐这张图在服务器里必须有
-                            combinedMsg.img("file:///home/admin/loli-bot/error.jpg");
-
-                        }
-                    }
+//                    if (imageUrl != null) {
+//                        File tmpImg = downloadImageToTemp(imageUrl);
+//                        if (tmpImg != null) {
+//                            combinedMsg.img("file://" + tmpImg.getAbsolutePath());
+//                            tmpImg.delete(); // 发送后立即删除
+//                        } else {
+//                            //⭐这张图在服务器里必须有
+//                            combinedMsg.img("file:///home/admin/loli-bot/error.jpg");
+//                        }
+//                    }
 
                     // 番剧之间添加分隔
                     combinedMsg.text("\n");
