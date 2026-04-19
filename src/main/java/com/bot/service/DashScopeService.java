@@ -39,6 +39,14 @@ public interface DashScopeService {
             @UserMessage String message
     );
 
+    /**
+     * 第一印象
+     */
+    @SystemMessage(fromResource = "/prompts/first.txt")
+    String firstImage(
+            @UserMessage String message
+    );
+
 
     //结构化输出  使用java的新特性 record构建类
     //报告
