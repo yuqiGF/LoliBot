@@ -2,16 +2,16 @@ package com.bot.plugin;
 
 import com.bot.common.GroupNumber;
 import com.bot.common.QQNumber;
-
 import com.bot.model.User;
 import com.bot.service.DashScopeService;
 import com.bot.utils.ai.DeepSeekClient;
+import com.bot.utils.common.BotCommandUtils;
+import com.bot.utils.common.MessageTextUtils;
 import com.mikuac.shiro.annotation.GroupMessageHandler;
 import com.mikuac.shiro.annotation.MessageHandlerFilter;
 import com.mikuac.shiro.annotation.PrivateMessageHandler;
 import com.mikuac.shiro.annotation.common.Shiro;
 import com.mikuac.shiro.common.utils.MsgUtils;
-import com.mikuac.shiro.common.utils.ShiroUtils;
 import com.mikuac.shiro.core.Bot;
 import com.mikuac.shiro.core.BotPlugin;
 import com.mikuac.shiro.dto.event.message.GroupMessageEvent;
@@ -20,218 +20,155 @@ import com.mikuac.shiro.enums.AtEnum;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+/**
+ * 大模型聊天插件。
+ *
+ * <p>职责划分：
+ * 1. 这里负责 QQ 消息入口、用户状态和命令路由；
+ * 2. DashScopeService / DeepSeekClient 负责真正的大模型调用；
+ * 3. CQ 码处理放在 MessageTextUtils，避免插件里堆正则。</p>
+ */
 @Component
 @Shiro
 public class LLMPlugin extends BotPlugin {
+
+    private static final int MASTER_FAVORABILITY = 101;
+    private static final int DEFAULT_FAVORABILITY = 45;
+    private static final int FALLBACK_FAVORABILITY = 30;
+    private static final int DEFAULT_REPLY_RATE = 4;
+    private static final int SPECIAL_REPLY_RATE = 2;
+    private static final int MIN_REPLY_RATE = 1;
+    private static final int MAX_REPLY_RATE = 8;
+    private static final int AUTO_CHAT_MIN_CONTEXT_SIZE = 5;
+    private static final int AUTO_CHAT_MAX_CONTEXT_SIZE = 30;
+
+    /**
+     * 从模型回复中提取好感度增量，例如：[Δ好感度:+3]。
+     */
+    private static final Pattern FAV_CHANGE_PATTERN = Pattern.compile("\\[Δ好感度:\\s*([+-]?\\d+)]");
+
+    /**
+     * 第一印象接口只需要一个 0-100 的数字，这里做兜底提取。
+     */
+    private static final Pattern NUMBER_PATTERN = Pattern.compile("(\\d+)");
+
     @Resource
     private DashScopeService dashScopeService;
 
-    Map<Long, User> userMap = new ConcurrentHashMap<>();  //全局用户列表
-    Map<Long, List<String>> messageMap = new ConcurrentHashMap<>();  //全局消息列表
-    Random r = new Random();  //随机数
+    @Resource
+    private DeepSeekClient deepSeekClient;
 
     /**
-     * 智能问答   调用ai和指定返回值暂支都写在这里了
-     *
-     * @param bot
-     * @param event
+     * 当前运行期内的用户状态。后续如果要长期保存好感度，可以把这里替换为数据库或文件存储。
+     */
+    private final Map<Long, User> userMap = new ConcurrentHashMap<>();
+
+    /**
+     * 按群缓存最近聊天上下文，用于低概率自动接话。
+     */
+    private final Map<Long, List<String>> messageMap = new ConcurrentHashMap<>();
+
+    /**
+     * @ 机器人时触发的主聊天入口。
      */
     @GroupMessageHandler
     @MessageHandlerFilter(at = AtEnum.NEED)
     public void qWenTalk(Bot bot, GroupMessageEvent event) {
-        //用户不存在的话新建用户
-        Long userId = event.getUserId();  //用户id
-        isUserExist(event, userId);
-        //获取用户信息
-        User user = userMap.get(userId);
+        Long userId = event.getUserId();
+        User user = getOrCreateUser(event, userId);
+        String message = MessageTextUtils.plainText(event.getMessage());
 
-        //提取消息
-        String message = event.getMessage().replaceFirst("\\[CQ:.*?\\]\\s*", "");
-        String res;
-        if (message.isEmpty()) {
-            if (Objects.equals(userId, QQNumber.MASTER)) {
-                res = "狗修金 Ciallo～(∠・ω< )⌒★";
-            } else {
-                int favorability = user.getFavorability(); //好感度
-                if (favorability <= 20) {
-                    res = user.getNickname() + "是谁，不熟喵~";
-                } else if (favorability <= 40) {
-                    res = "是" + user.getNickname() + "呀（远远看着）";
-                } else if (favorability <= 60) {
-                    res = user.getNickname() + "你好呀";
-                } else if (favorability <= 80) {
-                    res = user.getNickname() + " Ciallo～(∠・ω< )⌒★";
-                } else if (favorability <= 100) {
-                    res = user.getNickname() + "快 过来贴贴喵！";
-                }else {
-                    res = user.getNickname() + ":emm我不知道";
-                }
-            }
-        } else {
-            //⭐特殊用户
-//            if (Objects.equals(userId, QQNumber.BadGay)) {
-//                res = dashScopeService.chatBadGay(String.valueOf(userId), message);
-//            }
-            if (Objects.equals(userId, QQNumber.Bird)) {
-                res = dashScopeService.chatBird(String.valueOf(userId), message);
-            }
-            //正常好感度回应
-            else {
-                String currentMessage = user.getNickname() + ":\n" + "好感度：" + user.getFavorability() + "\n" + message;
-                res = dashScopeService.chat(String.valueOf(userId), currentMessage);
-                //兜底回复
-                if (res == null || res.isBlank()) res = "喵呜？主人刚才说了什么吗？";
-                // 正则提取变动分值
-                Pattern p = Pattern.compile("\\[Δ好感度:\\s*([+-]?\\d+)\\]");
-                Matcher m = p.matcher(res);
-                if (m.find()) {
-                    int change = Integer.parseInt(m.group(1));  //好感度变动
-                    if (change > 0) { //好感度上升
-                        int updatedReplyRate = user.getReplyRate() + 1;
-                        user.setReplyRate(Math.max(1, Math.min(8, updatedReplyRate)));  //回复概率变动
-                    } else if (change < 0) {
-                        int updatedReplyRate = user.getReplyRate() - 1;
-                        user.setReplyRate(Math.max(1, Math.min(8, updatedReplyRate)));  //回复概率变动
-                    }
-                    // 只有非主人状态才进行内存数据的更新
-                    if (user.getFavorability() < 101) {
-                        int updatedFav = user.getFavorability() + change;
-                        // 设置好感度在合法区间
-                        user.setFavorability(Math.max(0, Math.min(100, updatedFav)));
-                    }
-                }
-            }
+        // 视频生成插件也监听 @ 消息；这里主动避让，避免同一条命令被两个插件同时回复。
+        if (BotCommandUtils.isVideoGenerationCommand(message)) {
+            return;
         }
 
-        //发送消息
+        String response = message.isBlank()
+                ? buildEmptyAtReply(userId, user)
+                : chatWithFavorability(userId, user, message);
+
         bot.sendGroupMsg(
                 event.getGroupId(),
-                MsgUtils.builder().text(res).build(),
+                MsgUtils.builder().text(response).build(),
                 false
         );
     }
 
-
     /**
-     * ⭐自动概率回复
+     * 指定群的自动接话：攒够一定上下文后，按用户回复概率触发。
      */
     @GroupMessageHandler
-    @MessageHandlerFilter(groups = {GroupNumber.QIQI})  //在指定群组监听
+    @MessageHandlerFilter(groups = {GroupNumber.QIQI})
     public void autoTalk(Bot bot, GroupMessageEvent event) {
-        Long userId = event.getUserId();  //用户id
-
-
-        //不存在的话新建用户
-        isUserExist(event, userId);
-
-        List<String> messageList = messageMap.computeIfAbsent(event.getGroupId(), k -> new CopyOnWriteArrayList<>());  //获取本群消息列表
-        User user = userMap.get(userId);  //获取已封装的用户信息
-
-
-        //加入对话列表
-        String message = event.getMessage().replaceFirst("\\[CQ:.*?\\]\\s*", "");
-        messageList.add(user.getNickname() + ":" + message);
-        if (messageList.size() < 5) {
+        Long userId = event.getUserId();
+        User user = getOrCreateUser(event, userId);
+        String message = MessageTextUtils.plainText(event.getMessage());
+        if (message.isBlank() || BotCommandUtils.isVideoGenerationCommand(message)) {
             return;
         }
-        if (messageList.size() >= 30) {
-            messageList.removeFirst();
+
+        List<String> messageList = messageMap.computeIfAbsent(
+                event.getGroupId(),
+                ignored -> new CopyOnWriteArrayList<>()
+        );
+        messageList.add(user.getNickname() + ":" + message);
+
+        if (messageList.size() < AUTO_CHAT_MIN_CONTEXT_SIZE) {
+            return;
+        }
+        while (messageList.size() > AUTO_CHAT_MAX_CONTEXT_SIZE) {
+            messageList.remove(0);
         }
 
-        //概率回复
-        int replyRate = userMap.get(userId).getReplyRate();
-        int replyOrNot = r.nextInt(100);
-        //触发回复
-        if (replyOrNot <= replyRate) {
-            StringBuilder sb = new StringBuilder();
-            for (String s : messageList) {
-                sb.append(s).append("\n");
-            }
-            String currentMessage = sb.toString();
-
-            //自动接话
-            String res = dashScopeService.autoChat(currentMessage);
-
-            bot.sendGroupMsg(event.getGroupId(), res, false);
-            messageList.clear();  //清空会话
+        int replyRate = clamp(user.getReplyRate(), MIN_REPLY_RATE, MAX_REPLY_RATE);
+        int randomValue = ThreadLocalRandom.current().nextInt(100);
+        if (randomValue >= replyRate) {
+            return;
         }
+
+        String currentMessage = String.join("\n", messageList);
+        String response = dashScopeService.autoChat(currentMessage);
+        if (response == null || response.isBlank()) {
+            response = "喵呜？刚刚好像没想好怎么接话。";
+        }
+
+        bot.sendGroupMsg(event.getGroupId(), response, false);
+        messageList.clear();
     }
 
-    //⭐数字提取正则
-    private static final Pattern FAV_PATTERN = Pattern.compile("(\\d+)");
     /**
-     * 工具方法  判断用户是否存在  用户初始化
-     *
-     * @param event  事件
-     * @param userId 用户id
+     * 查询当前用户好感度。
      */
-    private void isUserExist(GroupMessageEvent event, Long userId) {
-        userMap.computeIfAbsent(userId, id -> {
-            //⭐特殊角色
-            if (id == QQNumber.Bird || id == QQNumber.MASTER) {
-                return new User(id, id == QQNumber.Bird ? "鸟鸟" : "宇崎崎", 101, 20);
-            }
-            if(id == QQNumber.BadGay || id == QQNumber.QiQi){
-                return new User(id , event.getSender().getNickname() , -1 , 2);
-            }
-
-            //⭐⭐第一印象
-            String message = event.getMessage();
-            try {
-                //获取初始好感度
-                String s = dashScopeService.firstImage(message);
-
-                //正则 提取数字 做一层保险
-                Matcher matcher = FAV_PATTERN.matcher(s);
-                if (matcher.find()) {
-                    String result = matcher.group(1);
-                    int favor = Integer.parseInt(result);
-                    favor = Math.max(0, Math.min(100, favor)); // 区间修正
-                    return new User(id, event.getSender().getNickname(), favor, 4);
-                }else {
-                    return new User(id , event.getSender().getNickname(), 45, 4);
-                }
-            } catch (Exception e) {
-                return new User(id , event.getSender().getNickname(), 30, 4);
-            }
-        });
-    }
-
     @GroupMessageHandler
     @MessageHandlerFilter(cmd = "好感度")
     public void getFavor(Bot bot, GroupMessageEvent event) {
-        //如果用户不存在 则初始化
         Long userId = event.getSender().getUserId();
-        isUserExist(event, userId);
-        //获取用户
-        User user = userMap.get(userId);
-        int favor = user.getFavorability();
-        //构造消息
+        User user = getOrCreateUser(event, userId);
+
         String message = MsgUtils.builder()
                 .at(userId)
                 .text("您的好感度为:")
-                .text(String.valueOf(favor))
+                .text(String.valueOf(user.getFavorability()))
                 .build();
-        bot.sendGroupMsg(event.getGroupId(), message , false);
+        bot.sendGroupMsg(event.getGroupId(), message, false);
     }
 
     /**
-     * 私聊回复
-     *
-     * @param bot
-     * @param event
+     * 私聊时直接走默认 DashScope 对话。
      */
     @PrivateMessageHandler
     public void aiTalk(Bot bot, PrivateMessageEvent event) {
         String userId = String.valueOf(event.getUserId());
-        String response = dashScopeService.chat(userId, event.getMessage());
+        String response = dashScopeService.chat(userId, MessageTextUtils.plainText(event.getMessage()));
         bot.sendPrivateMsg(
                 event.getUserId(),
                 MsgUtils.builder().text(response).build(),
@@ -239,22 +176,136 @@ public class LLMPlugin extends BotPlugin {
         );
     }
 
-
     /**
-     * DeepSeek模型
-     *
-     * @param bot
-     * @param event
-     * @param matcher
-     * @throws IOException
+     * DeepSeek 临时问答：群内发送 "ds 问题"。
      */
     @GroupMessageHandler
-    @MessageHandlerFilter(cmd = "^ds\\s(.*)?$")
-    public void deepSeekTemp(Bot bot, GroupMessageEvent event, Matcher matcher) throws IOException {
-        String name = matcher.group(1);
-        DeepSeekClient deepSeekClient = new DeepSeekClient();
-        String info = deepSeekClient.chat(event.getMessage());
-        String msg = MsgUtils.builder().text(info).build();
-        bot.sendGroupMsg(event.getGroupId(), msg, false);
+    @MessageHandlerFilter(cmd = "^ds\\s*(.*)$")
+    public void deepSeekTemp(Bot bot, GroupMessageEvent event, Matcher matcher) {
+        String question = matcher.group(1) == null ? "" : matcher.group(1).trim();
+        String response = deepSeekClient.chat(question);
+        bot.sendGroupMsg(
+                event.getGroupId(),
+                MsgUtils.builder().text(response).build(),
+                false
+        );
+    }
+
+    /**
+     * 获取用户状态；不存在时，根据特殊账号或第一印象模型初始化。
+     */
+    private User getOrCreateUser(GroupMessageEvent event, Long userId) {
+        return userMap.computeIfAbsent(userId, id -> createUser(event, id));
+    }
+
+    /**
+     * 初始化用户。特殊用户直接给固定设定，普通用户用 firstImage 估算第一印象好感度。
+     */
+    private User createUser(GroupMessageEvent event, Long userId) {
+        if (Objects.equals(userId, QQNumber.Bird) || Objects.equals(userId, QQNumber.MASTER)) {
+            String nickname = Objects.equals(userId, QQNumber.Bird) ? "鸟鸟" : "宇崎崎";
+            return new User(userId, nickname, MASTER_FAVORABILITY, MAX_REPLY_RATE);
+        }
+        if (Objects.equals(userId, QQNumber.BadGay) || Objects.equals(userId, QQNumber.QiQi)) {
+            return new User(userId, event.getSender().getNickname(), -1, SPECIAL_REPLY_RATE);
+        }
+
+        String plainMessage = MessageTextUtils.plainText(event.getMessage());
+        try {
+            String result = dashScopeService.firstImage(plainMessage);
+            Matcher matcher = NUMBER_PATTERN.matcher(result == null ? "" : result);
+            if (matcher.find()) {
+                int favorability = clamp(Integer.parseInt(matcher.group(1)), 0, 100);
+                return new User(userId, event.getSender().getNickname(), favorability, DEFAULT_REPLY_RATE);
+            }
+            return new User(userId, event.getSender().getNickname(), DEFAULT_FAVORABILITY, DEFAULT_REPLY_RATE);
+        } catch (Exception e) {
+            return new User(userId, event.getSender().getNickname(), FALLBACK_FAVORABILITY, DEFAULT_REPLY_RATE);
+        }
+    }
+
+    /**
+     * 用户只 @ 机器人、不带内容时，根据当前好感度返回固定问候。
+     */
+    private String buildEmptyAtReply(Long userId, User user) {
+        if (Objects.equals(userId, QQNumber.MASTER)) {
+            return "狗修金 Ciallo～(∠・ω< )⌒★";
+        }
+
+        int favorability = user.getFavorability();
+        if (favorability <= 20) {
+            return user.getNickname() + "是谁，不熟喵~";
+        }
+        if (favorability <= 40) {
+            return "是" + user.getNickname() + "呀（远远看着）";
+        }
+        if (favorability <= 60) {
+            return user.getNickname() + "你好呀";
+        }
+        if (favorability <= 80) {
+            return user.getNickname() + " Ciallo～(∠・ω< )⌒★";
+        }
+        if (favorability <= 100) {
+            return user.getNickname() + "快 过来贴贴喵！";
+        }
+        return user.getNickname() + ":emm我不知道";
+    }
+
+    /**
+     * 与 DashScope 对话，并根据模型返回的 [Δ好感度:x] 更新用户状态。
+     */
+    private String chatWithFavorability(Long userId, User user, String message) {
+        String response;
+        if (Objects.equals(userId, QQNumber.Bird)) {
+            response = dashScopeService.chatBird(String.valueOf(userId), message);
+        } else {
+            String currentMessage = user.getNickname()
+                    + ":\n好感度：" + user.getFavorability()
+                    + "\n" + message;
+            response = dashScopeService.chat(String.valueOf(userId), currentMessage);
+            response = applyFavorabilityDelta(user, response);
+        }
+
+        if (response == null || response.isBlank()) {
+            return "喵呜？主人刚才说了什么吗？";
+        }
+        return response;
+    }
+
+    /**
+     * 解析并应用好感度变化，同时把控制标记从最终回复里移除。
+     */
+    private String applyFavorabilityDelta(User user, String response) {
+        if (response == null || response.isBlank()) {
+            return response;
+        }
+
+        Matcher matcher = FAV_CHANGE_PATTERN.matcher(response);
+        if (!matcher.find()) {
+            return response;
+        }
+
+        int change = Integer.parseInt(matcher.group(1));
+        updateReplyRate(user, change);
+        if (user.getFavorability() < MASTER_FAVORABILITY) {
+            user.setFavorability(clamp(user.getFavorability() + change, 0, 100));
+        }
+
+        return matcher.replaceAll("").trim();
+    }
+
+    /**
+     * 好感度上升时略微提高自动回复概率，下降时略微降低，始终限制在安全区间。
+     */
+    private void updateReplyRate(User user, int favorabilityChange) {
+        if (favorabilityChange == 0) {
+            return;
+        }
+        int delta = favorabilityChange > 0 ? 1 : -1;
+        user.setReplyRate(clamp(user.getReplyRate() + delta, MIN_REPLY_RATE, MAX_REPLY_RATE));
+    }
+
+    private static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 }

@@ -1,6 +1,7 @@
 package com.bot.plugin;
 
 import com.bot.game.MinesweeperGame;
+import com.bot.utils.common.TypstRenderUtils;
 import com.mikuac.shiro.annotation.GroupMessageHandler;
 import com.mikuac.shiro.annotation.MessageHandlerFilter;
 import com.mikuac.shiro.annotation.common.Shiro;
@@ -8,29 +9,34 @@ import com.mikuac.shiro.common.utils.MsgUtils;
 import com.mikuac.shiro.core.Bot;
 import com.mikuac.shiro.core.BotPlugin;
 import com.mikuac.shiro.dto.event.message.GroupMessageEvent;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
 
 @Component
 @Shiro
 public class MinesweeperPlugin extends BotPlugin {
 
+    private static final Logger logger = LoggerFactory.getLogger(MinesweeperPlugin.class);
+
     private static final long ADMIN_QQ = 2328441709L;
+    private static final Duration RENDER_TIMEOUT = Duration.ofSeconds(15);
 
     private final ConcurrentHashMap<Long, MinesweeperGame> games = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<Long, Boolean> gameEnabled = new ConcurrentHashMap<>();
 
     @Value("${typst.path:typst}")
     private String typstPath;
+
+    @Value("${typst.font-path:}")
+    private String typstFontPath;
 
     /**
      * 管理员开关扫雷功能
@@ -157,15 +163,14 @@ public class MinesweeperPlugin extends BotPlugin {
         File png = compileTypst(typstCode, groupId);
 
         if (png != null) {
-            System.err.println("[Minesweeper] PNG 渲染成功: " + png.getAbsolutePath()
-                    + " (" + png.length() + " bytes)");
+            logger.debug("扫雷棋盘 PNG 渲染成功: {} ({} bytes)", png.getAbsolutePath(), png.length());
             if (prefix != null) {
                 bot.sendGroupMsg(groupId, MsgUtils.builder().text(prefix).build(), false);
             }
             String imgMsg = MsgUtils.builder().img("file://" + png.getAbsolutePath()).build();
             bot.sendGroupMsg(groupId, imgMsg, false);
         } else {
-            System.err.println("[Minesweeper] Typst 失败，回退到文本");
+            logger.warn("扫雷棋盘 Typst 渲染失败，回退到文本棋盘");
             String board = game.render();
             String text = prefix != null ? prefix + "\n" + board : board;
             bot.sendGroupMsg(groupId, MsgUtils.builder().text(text).build(), false);
@@ -176,58 +181,15 @@ public class MinesweeperPlugin extends BotPlugin {
      * 调用 Typst CLI 将代码编译为 PNG
      */
     private File compileTypst(String typstCode, long groupId) {
-        try {
-            Path tmpDir = Path.of(System.getProperty("java.io.tmpdir"), "lolibot_minesweeper");
-            Files.createDirectories(tmpDir);
-
-            File typFile = tmpDir.resolve("board_" + groupId + ".typ").toFile();
-            File pngFile = tmpDir.resolve("board_" + groupId + ".png").toFile();
-
-            try (FileWriter w = new FileWriter(typFile)) {
-                w.write(typstCode);
-            }
-
-            ProcessBuilder pb = new ProcessBuilder(
-                    typstPath, "compile",
-                    typFile.getAbsolutePath(),
-                    pngFile.getAbsolutePath(),
-                    "--format", "png"
-            );
-            pb.redirectErrorStream(true);
-            Process proc = pb.start();
-
-            // 必须消费 stdout，否则管道缓冲区满会导致进程卡死
-            StringBuilder output = new StringBuilder();
-            try (var reader = new java.io.BufferedReader(
-                    new java.io.InputStreamReader(proc.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
-                }
-            }
-
-            boolean finished = proc.waitFor(15, TimeUnit.SECONDS);
-            if (!finished) {
-                proc.destroyForcibly();
-                System.err.println("[Minesweeper] Typst 进程超时: " + output);
-                return null;
-            }
-
-            typFile.delete();
-
-            if (proc.exitValue() == 0 && pngFile.exists() && pngFile.length() > 0) {
-                return pngFile;
-            }
-
-            System.err.println("[Minesweeper] Typst 编译失败 (exit=" + proc.exitValue()
-                    + "):\n" + output + "\n--- Typst 源码 ---\n" + typstCode + "\n--- EOF ---");
-            if (pngFile.exists()) pngFile.delete();
-            return null;
-        } catch (Exception e) {
-            System.err.println("[Minesweeper] Typst 异常: " + e.getMessage());
-            e.printStackTrace();
-            return null;
-        }
+        Path tmpDir = Path.of(System.getProperty("java.io.tmpdir"), "lolibot_minesweeper");
+        return TypstRenderUtils.compileToPng(
+                typstPath,
+                typstFontPath,
+                tmpDir,
+                "board_" + groupId,
+                typstCode,
+                RENDER_TIMEOUT
+        );
     }
 
     /**

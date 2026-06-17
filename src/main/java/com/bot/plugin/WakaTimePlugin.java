@@ -18,7 +18,7 @@ import java.util.regex.Matcher;
 @Shiro
 public class WakaTimePlugin extends BotPlugin {
 
-    @Value("${wakatime.api_key:}")
+    @Value("${wakatime.api-key:${wakatime.api_key:}}")
     private String apiKey;
 
     private WakaTimeClient client;

@@ -1,6 +1,8 @@
 package com.bot.plugin;
 
 import com.bot.utils.ai.VideoGenerator;
+import com.bot.utils.common.BotCommandUtils;
+import com.bot.utils.common.MessageTextUtils;
 import com.mikuac.shiro.annotation.GroupMessageHandler;
 import com.mikuac.shiro.annotation.MessageHandlerFilter;
 import com.mikuac.shiro.annotation.common.Shiro;
@@ -29,16 +31,16 @@ public class VideoGenerationPlugin extends BotPlugin {
     @GroupMessageHandler
     @MessageHandlerFilter(at = AtEnum.NEED) // 视频生成处理器
     public void generateVideoOnAt(Bot bot, GroupMessageEvent event) {
-        // 提取消息内容，去掉CQ码
-        String message = event.getMessage().replaceFirst("\\[CQ:.*?\\]\\s*", "");
+        // 提取用户实际输入内容，统一剥离 @、图片等 CQ 码。
+        String message = MessageTextUtils.plainText(event.getMessage());
 
         // 检查是否包含视频生成指令
-        if (!message.isEmpty() && isVideoGenerationCommand(message)) {
+        if (!message.isEmpty() && BotCommandUtils.isVideoGenerationCommand(message)) {
             try {
                 logger.info("收到视频生成请求: {}", message);
 
                 // 提取消息中的图片URL
-                String imgUrl = extractImageUrl(event.getMessage());
+                String imgUrl = MessageTextUtils.extractImageUrl(event.getMessage());
 
                 if (imgUrl == null) {
                     logger.error("未在消息中找到图片");
@@ -96,73 +98,5 @@ public class VideoGenerationPlugin extends BotPlugin {
         }
 
         // 不包含视频生成指令，框架会自动调用其他匹配的处理器（如deepSeekTalk）
-    }
-
-    /**
-     * 检查是否为视频生成命令
-     */
-    private boolean isVideoGenerationCommand(String text) {
-        if (text == null || text.trim().isEmpty()) {
-            return false;
-        }
-        String lower = text.toLowerCase();
-        return lower.contains("生成视频") || lower.contains("视频生成") ||
-                lower.contains("做个视频") || lower.contains("video");
-    }
-
-    /**
-     * 从消息中提取图片URL
-     */
-    private String extractImageUrl(String message) {
-        // 检查消息中是否包含CQ码图片
-        if (message.contains("[CQ:image")) {
-            try {
-                // 查找CQ码图片的URL部分
-                int start = message.indexOf("url=") + 4;
-                if (start > 3) {
-                    // 尝试多种可能的结束标记
-                    // 1. 查找逗号（常见于CQ码参数分隔）
-                    int end1 = message.indexOf(",", start);
-                    // 2. 查找右括号
-                    int end2 = message.indexOf(")", start);
-                    // 3. 查找右中括号
-                    int end3 = message.indexOf("]", start);
-
-                    // 选择最早出现的有效结束标记
-                    int end = -1;
-                    if (end1 > start) end = end1;
-                    if (end2 > start && (end == -1 || end2 < end)) end = end2;
-                    if (end3 > start && (end == -1 || end3 < end)) end = end3;
-
-                    if (end > start) {
-                        String url = message.substring(start, end);
-                        // 处理URL中的转义字符和可能的空格
-                        url = url.trim().replace("\\/", "/");
-                        // 处理可能的引号包围
-                        if (url.startsWith("'") && url.endsWith("'")) {
-                            url = url.substring(1, url.length() - 1);
-                        } else if (url.startsWith("\"") && url.endsWith("\"")) {
-                            url = url.substring(1, url.length() - 1);
-                        }
-                        return url;
-                    }
-                }
-            } catch (Exception e) {
-                logger.error("提取图片URL时发生异常: {}", e.getMessage());
-            }
-        }
-
-        // 检查是否包含普通的图片URL
-        // 增强的URL匹配正则表达式，支持更多图片格式
-        java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
-                "https?:\\/\\/[^,\\s\\]]+\\.(jpg|jpeg|png|gif|bmp|webp|avif|tiff|svg|ico)",
-                java.util.regex.Pattern.CASE_INSENSITIVE
-        );
-        java.util.regex.Matcher matcher = pattern.matcher(message);
-        if (matcher.find()) {
-            return matcher.group();
-        }
-
-        return null;
     }
 }

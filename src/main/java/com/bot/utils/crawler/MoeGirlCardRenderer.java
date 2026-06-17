@@ -2,23 +2,26 @@ package com.bot.utils.crawler;
 
 import com.bot.utils.crawler.MoeGirlCrawler.InfoboxData;
 import com.bot.utils.crawler.MoeGirlCrawler.InfoboxRow;
+import com.bot.utils.common.TypstRenderUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
-import java.io.BufferedReader;
 import java.io.File;
-import java.io.InputStreamReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 public class MoeGirlCardRenderer {
+
+    private static final Logger logger = LoggerFactory.getLogger(MoeGirlCardRenderer.class);
 
     private static final String DEFAULT_SECTION_FILL = "DEEDE0";
     private static final String RELATION_SECTION_FILL = "E0FFFF";
     private static final String LINK_BLUE = "0645AD";
+    private static final Duration RENDER_TIMEOUT = Duration.ofSeconds(25);
 
     private MoeGirlCardRenderer() {
     }
@@ -35,72 +38,21 @@ public class MoeGirlCardRenderer {
             Files.createDirectories(tmpDir);
 
             String id = safeId((data.pageTitle == null ? "" : data.pageTitle) + "_" + cacheKey);
-            Path typFile = tmpDir.resolve("moegirl_card_" + id + ".typ");
-            Path pngFile = tmpDir.resolve("moegirl_card_" + id + ".png");
+            String fileStem = "moegirl_card_" + id;
             String localImageName = prepareImage(data, tmpDir, id);
 
             String typstCode = buildTypst(data, localImageName);
-            Files.writeString(typFile, typstCode, StandardCharsets.UTF_8);
-
-            ProcessBuilder pb = new ProcessBuilder(
-                    typstPath, "compile",
-                    typFile.toAbsolutePath().toString(),
-                    pngFile.toAbsolutePath().toString(),
-                    "--format", "png"
+            return TypstRenderUtils.compileToPng(
+                    typstPath,
+                    fontPath,
+                    tmpDir,
+                    fileStem,
+                    typstCode,
+                    RENDER_TIMEOUT
             );
-            addFontPaths(pb, fontPath);
-            pb.redirectErrorStream(true);
-
-            Process proc = pb.start();
-            StringBuilder output = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
-                }
-            }
-
-            boolean finished = proc.waitFor(25, TimeUnit.SECONDS);
-            if (!finished) {
-                proc.destroyForcibly();
-                System.err.println("[MoeGirlCard] Typst 渲染超时: " + output);
-                return null;
-            }
-
-            Files.deleteIfExists(typFile);
-            File png = pngFile.toFile();
-            if (proc.exitValue() == 0 && png.exists() && png.length() > 0) {
-                return png;
-            }
-
-            System.err.println("[MoeGirlCard] Typst 渲染失败 (exit=" + proc.exitValue()
-                    + "):\n" + output + "\n--- Typst 源码 ---\n" + typstCode + "\n--- EOF ---");
-            Files.deleteIfExists(pngFile);
-            return null;
         } catch (Exception e) {
-            System.err.println("[MoeGirlCard] 渲染异常: " + e.getMessage());
-            e.printStackTrace();
+            logger.warn("萌百卡片渲染异常", e);
             return null;
-        }
-    }
-
-    private static void addFontPaths(ProcessBuilder pb, String fontPath) {
-        if (fontPath == null || fontPath.isBlank()) return;
-
-        String[] parts = fontPath.split(java.util.regex.Pattern.quote(File.pathSeparator));
-        for (String rawPath : parts) {
-            if (rawPath == null || rawPath.isBlank()) continue;
-
-            File path = new File(rawPath.trim());
-            if (!path.isAbsolute()) {
-                path = path.getAbsoluteFile();
-            }
-            if (path.exists()) {
-                pb.command().add("--font-path");
-                pb.command().add(path.getAbsolutePath());
-            } else {
-                System.err.println("[MoeGirlCard] 字体目录不存在，跳过: " + path.getAbsolutePath());
-            }
         }
     }
 
@@ -116,7 +68,7 @@ public class MoeGirlCardRenderer {
             Files.copy(source, tmpDir.resolve(fileName), StandardCopyOption.REPLACE_EXISTING);
             return fileName;
         } catch (Exception e) {
-            System.err.println("[MoeGirlCard] 复制封面失败: " + e.getMessage());
+            logger.warn("萌百卡片复制封面失败: {}", e.getMessage());
             return null;
         }
     }

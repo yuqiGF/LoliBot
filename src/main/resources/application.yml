@@ -1,38 +1,48 @@
-# ??????????
+# LoliBot 基础配置
+# 说明：
+# 1. 本文件只放非敏感默认值，API Key、机器人地址等私密配置请写入 application-local.yml。
+# 2. Spring 会自动加载 application-local.yml；该文件已在 .gitignore 中忽略。
+
 server:
   port: 8082
-
-shiro:
-  ws:
-    server:
-      enable: true
-      url: ""
-  plugin-list:
-    # - com.bot.plugin.MainPlugin  # 已删除 MainPlugin，移除注册
-
 
 spring:
   application:
     name: loli_bot
 
-  #⭐加载配置环境
   config:
     import: optional:application-local.yml
+
   profiles:
     active: local
 
-  #数据库配置
+shiro:
+  ws:
+    server:
+      enable: true
+      # QQ 机器人 WebSocket 地址，例如 ws://127.0.0.1:3001
+      url: ""
+  plugin-list:
+    # 默认使用 @Shiro 自动扫描插件；只有需要手动指定插件时再配置此列表。
 
-#wakatime配置
+# WakaTime 编程统计配置；建议在 application-local.yml 中填写。
 wakatime:
+  api-key:
+  # 兼容旧配置名，后续可统一迁移到 api-key。
   api_key:
 
-#typst配置
+# Typst 用于渲染扫雷棋盘和萌百信息卡。
 typst:
+  # typst 可执行文件路径；如果已加入 PATH，保持 typst 即可。
   path: typst
+  # 额外字体目录，多个目录使用系统路径分隔符分开。
   font-path: fonts
 
-#langchain4j配置
+# DeepSeek 临时问答配置；建议在 application-local.yml 中填写。
+deepseek:
+  api-key:
+
+# LangChain4j / DashScope 配置；API Key 由本地配置覆盖。
 langchain4j:
   community:
     dashscope:
@@ -42,8 +52,7 @@ langchain4j:
         enable-search: true
       embedding-model:
         model-name: text-embedding-v4
-        api-key: 
+        api-key:
       streaming-chat-model:
         model-name: qwen3-max
         api-key:
-

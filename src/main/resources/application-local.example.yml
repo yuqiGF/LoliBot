@@ -1,34 +1,35 @@
-# 本地开发配置示例文件
-# 请将此文件复制为 application-local.yml 并填入您的实际配置
-# 注意：application-local.yml 文件不应提交到git仓库
+# 本地开发配置示例
+# 使用方式：复制为 application-local.yml，然后填入自己的真实配置。
+# 注意：application-local.yml 包含密钥和私有地址，不要提交到 Git 仓库。
 
-spring:
-  application:
-    name: loli_bot
-  datasource:
-    password: 123456  # 可选：如需数据库功能时配置
+shiro:
+  ws:
+    server:
+      enable: true
+      url: ws://127.0.0.1:3001
 
-# langchain4j配置 - 阿里云DashScope
 langchain4j:
   community:
     dashscope:
       chat-model:
-        model-name: qwen3-max-preview
-        api-key: 您的DashScope_API密钥
+        model-name: qwen3-max
+        api-key: 你的_DashScope_API_Key
+        enable-search: true
       embedding-model:
         model-name: text-embedding-v4
-        api-key: 您的DashScope_API密钥
+        api-key: 你的_DashScope_API_Key
       streaming-chat-model:
-        model-name: qwen3-max-preview
-        api-key: 您的DashScope_API密钥
+        model-name: qwen3-max
+        api-key: 你的_DashScope_API_Key
 
-# DeepSeek AI配置
 deepseek:
-  api_key: 您的DeepSeek_API密钥
+  api-key: 你的_DeepSeek_API_Key
 
-# 可选：QQ机器人WebSocket配置（也可在主配置文件中设置）
-# shiro:
-#   ws:
-#     server:
-#       enable: true
-#       url: ws://your-bot-server-address:port
+wakatime:
+  api-key: 你的_WakaTime_API_Key
+
+typst:
+  # 如果 typst 已加入 PATH，保持 typst 即可；否则填写 typst.exe 的绝对路径。
+  path: typst
+  # 中文/Emoji 渲染异常时，填写本机字体目录；多个目录用系统路径分隔符分开。
+  font-path: fonts
