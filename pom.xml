@@ -74,6 +74,7 @@
             <version>1.2.83</version> <!-- 请使用最新版本 -->
         </dependency>
 
+        <!-- Jsoup HTML解析（parse API降级方案使用）-->
         <dependency>
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
@@ -123,7 +124,6 @@
             <scope>test</scope>
         </dependency>
 
-
     </dependencies>
 
     <build>
@@ -154,7 +154,7 @@
                         <version>${lombok.version}</version>
                     </path>
                 </annotationProcessorPaths>
-            </configuration>
+                </configuration>
             </plugin>
         </plugins>
     </build>

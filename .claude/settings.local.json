@@ -1,0 +1,38 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mvn compile *)",
+      "Bash(mvn test-compile *)",
+      "WebFetch(domain:zh.moegirl.org.cn)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "Bash(mvn clean *)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl *)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(json.dumps\\({k:d.get\\(k,''\\) for k in ['title','pageprops','description']}, ensure_ascii=False\\)\\); print\\('source has', len\\(d.get\\('source',''\\)\\), 'chars'\\)\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\('Keys:', list\\(d.keys\\(\\)\\)\\); print\\('Title:', d.get\\('title'\\)\\); print\\('Source length:', len\\(d.get\\('source',''\\)\\)\\)\")",
+      "Bash(mvn test *)",
+      "Bash(python3 -c ' *)",
+      "Bash(tee /tmp/test_output.txt)",
+      "Bash(mvn exec:java -Dexec.classpathScope=test -Dexec.mainClass=\"com.bot.utils.crawler.MoeGirlTest\" -e)",
+      "Bash(mvn exec:java -Dexec.classpathScope=test -Dexec.mainClass=\"com.bot.utils.CrawlerTest\" -Dexec.args=\"testSmartSearch\" -e)",
+      "Bash(mvn exec:java -Dexec.classpathScope=test -Dexec.mainClass=\"com.bot.utils.CrawlerTest\" -e)",
+      "Read(//tmp/**)",
+      "Bash(grep -A 50 \"查询: 初音$\" /tmp/test_output.txt)",
+      "Bash(python3 *)",
+      "Bash(typst --version)",
+      "Bash(winget install *)",
+      "Read(//c/Users/Lenovo/AppData/Local/Microsoft/WinGet/Packages/**)",
+      "Read(//c/Users/Lenovo/**)",
+      "Bash($TYPST *)",
+      "Bash(cat)",
+      "Bash(/c/Users/Lenovo/AppData/Local/Microsoft/WinGet/Packages/Typst.Typst_Microsoft.Winget.Source_8wekyb3d8bbwe/typst-x86_64-pc-windows-msvc/typst.exe compile *)",
+      "Bash(tar -xf typst-linux.tar.xz)",
+      "Read(//d/tmp/typst-x86_64-unknown-linux-musl/**)",
+      "Bash(scp *)",
+      "Bash(python -c \"import paramiko; print\\('OK'\\)\")",
+      "Bash(mvn package *)",
+      "Bash(python -c \"import paramiko; print\\('paramiko available'\\)\")"
+    ]
+  }
+}

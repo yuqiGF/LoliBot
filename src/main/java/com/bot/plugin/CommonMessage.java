@@ -1,5 +1,6 @@
 package com.bot.plugin;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.mikuac.shiro.annotation.GroupMessageHandler;
 import com.mikuac.shiro.annotation.MessageHandlerFilter;
 import com.mikuac.shiro.annotation.PrivateMessageHandler;
@@ -11,18 +12,24 @@ import com.mikuac.shiro.dto.event.message.GroupMessageEvent;
 import com.mikuac.shiro.dto.event.message.PrivateMessageEvent;
 import org.springframework.stereotype.Component;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.regex.Matcher;
 
+
+/**
+ * 发送指定的消息
+ */
 @Component
 @Shiro
 public class CommonMessage extends BotPlugin {
+
     /**
-     * 私聊消息
-     * @param bot
-     * @param event
-     * @param matcher
+     * 私聊消息 （测试用）
      */
     @PrivateMessageHandler
     @MessageHandlerFilter(cmd = "你好")
@@ -32,25 +39,18 @@ public class CommonMessage extends BotPlugin {
     }
 
     /**
-     * 群聊消息
-     * @param bot
-     * @param event
-     * @param matcher
-     * @throws IOException
+     * 宇崎崎超级可爱！
      */
     @GroupMessageHandler
     @MessageHandlerFilter(cmd = "啾咪")
     public void kiss(Bot bot, GroupMessageEvent event, Matcher matcher) throws IOException {
         String msg = MsgUtils.builder().text("宇崎崎超级可爱").build();
-//        CloseableHttpClient httpClient = HttpClients.createDefault();
-//        HttpPost httpPost = new HttpPost("/send_poke");
-//        BasicNameValuePair userId = new BasicNameValuePair("user_id", event.getUserId().toString());
-//        httpPost.setEntity(new UrlEncodedFormEntity((List<? extends NameValuePair>) userId));
-//        httpClient.execute(httpPost);
         bot.sendGroupMsg(event.getGroupId(),msg,false);
     }
 
-//    @GroupMessageHandler
+    /**
+     * 检测到聊天中有“萝莉”立刻告知宇崎崎
+     */
     public void loli(Bot bot, GroupMessageEvent event, Matcher matcher) throws IOException {
         String message = event.getMessage();
         if (message.contains("萝莉") || message.contains("yqq") || message.contains("loli")){
@@ -62,7 +62,9 @@ public class CommonMessage extends BotPlugin {
         }
     }
 
-//    @GroupMessageHandler
+    /**
+     * 检测到聊天中有“小说”，立刻通知蛋挞
+     */
     public void fiction(Bot bot, GroupMessageEvent event, Matcher matcher) throws IOException {
         String message = event.getMessage();
         if (message.contains("小说")){

@@ -23,6 +23,14 @@ spring:
 
   #数据库配置
 
+#wakatime配置
+wakatime:
+  api_key:
+
+#typst配置
+typst:
+  path: typst
+  font-path: fonts
 
 #langchain4j配置
 langchain4j:

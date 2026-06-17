@@ -1,961 +1,1366 @@
 package com.bot.utils.crawler;
 
-import com.alibaba.fastjson2.JSON;
-import com.alibaba.fastjson2.JSONArray;
-import com.alibaba.fastjson2.JSONObject;
+import com.alibaba.fastjson.JSONArray;
+import com.alibaba.fastjson.JSONObject;
+import com.bot.utils.common.HttpClientPool;
+import com.bot.utils.common.TextMatcher;
+import org.apache.http.client.methods.CloseableHttpResponse;
+import org.apache.http.client.methods.HttpGet;
+import org.apache.http.impl.client.CloseableHttpClient;
+import org.apache.http.util.EntityUtils;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
+import org.jsoup.parser.Parser;
 import org.jsoup.select.Elements;
 
-import java.io.IOException;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.util.Random;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
- * 萌娘百科爬虫
- * 使用MediaWiki API绕过反爬限制
+ * 萌娘百科爬虫 — HTML 优先解析（parse API） + wikitext 降级
+ * 使用 moegirl.icu 镜像的 API，通用 infobox 检测，支持所有内容类型
  */
 public class MoeGirlCrawler {
-    
-    private static final int TIMEOUT = 30000;
-    private static final String BASE_URL = "https://mzh.moegirl.org.cn";
-    private static final String API_URL = BASE_URL + "/api.php";
-    private static final Random random = new Random();
-    
-    private static final String[] USER_AGENTS = {
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0",
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Safari/605.1.15"
+
+    private static final String MOEGIRL_URL = "https://moegirl.icu";
+    private static final String API_URL = MOEGIRL_URL + "/api.php";
+    private static final String FALLBACK_API = "https://zh.moegirl.org.cn/api.php";
+    private static final String IMAGE_BASE = "https://box.moegirl.icu/media/";
+
+    private static final String[] INFOBOX_SELECTORS = {
+        "table.moe-infobox.infobox2",
+        "table.moe-infobox.infoboxSpecial",
+        "div.moe-infobox.infotemplatebox",
+        "div.infotemplatebox",
+        "table.infobox",
+        "table.infobox2",
+        "table.infoboxSpecial",
+        "table[summary*=资料]",
+        "table[summary*=信息]",
+        "aside",
+        "div[itemscope]",
+        "[class*=infobox]",
+        "[class*=infotemplate]",
+        "[class*=infoBox]",
+        "[class*=InfoBox]",
     };
-    
-    /**
-     * 获取角色信息（使用TextExtracts API优化版）
-     */
-    public static String getInfo(String characterName) {
+
+    public static class InfoboxData {
+        public String pageTitle;
+        public String sourceUrl;
+        public Map<String, String> fields = new LinkedHashMap<>();
+        public List<String> captionLines = new ArrayList<>();
+        public List<InfoboxRow> cardRows = new ArrayList<>();
+        public String imagePath;
+        public String imageUrl;
+        public String redirectFrom;
+        public boolean isDisambiguation;
+        public List<String> disambiguationOptions;
+    }
+
+    public static class InfoboxRow {
+        public enum Type {
+            SECTION,
+            FIELD,
+            FULL_WIDTH
+        }
+
+        public Type type;
+        public String label;
+        public String value;
+        public String backgroundColor;
+        public boolean linkLike;
+
+        public static InfoboxRow section(String label, String backgroundColor) {
+            InfoboxRow row = new InfoboxRow();
+            row.type = Type.SECTION;
+            row.label = label;
+            row.backgroundColor = backgroundColor;
+            return row;
+        }
+
+        public static InfoboxRow field(String label, String value, boolean linkLike) {
+            InfoboxRow row = new InfoboxRow();
+            row.type = Type.FIELD;
+            row.label = label;
+            row.value = value;
+            row.linkLike = linkLike;
+            return row;
+        }
+
+        public static InfoboxRow fullWidth(String value, String backgroundColor, boolean linkLike) {
+            InfoboxRow row = new InfoboxRow();
+            row.type = Type.FULL_WIDTH;
+            row.value = value;
+            row.backgroundColor = backgroundColor;
+            row.linkLike = linkLike;
+            return row;
+        }
+    }
+
+    // ==================== 主入口 ====================
+
+    public static InfoboxData getInfo(String characterName) {
         if (characterName == null || characterName.trim().isEmpty()) {
-            return "请输入要查询的角色名";
-        }
-        
-        System.out.println("[MoeGirl] 查询: " + characterName);
-        
-        try {
-            // 使用MediaWiki API搜索
-            String pageTitle = searchPageTitle(characterName);
-            if (pageTitle == null) {
-                return "未找到相关信息";
-            }
-            
-            System.out.println("[MoeGirl] 找到页面: " + pageTitle);
-            
-            // 检测是否发生了重定向（标题与查询不完全一致）
-            boolean isRedirected = !pageTitle.equalsIgnoreCase(characterName) && 
-                                   !pageTitle.replace(" ", "").equalsIgnoreCase(characterName.replace(" ", ""));
-            
-            // 使用TextExtracts API获取简短介绍和图片
-            PageInfo pageInfo = getPageInfo(pageTitle);
-            
-            if (pageInfo == null) {
-                return "获取页面信息失败";
-            }
-            
-            // 格式化输出
-            StringBuilder result = new StringBuilder();
-            
-            // 如果发生重定向，显示提示
-            if (isRedirected) {
-                result.append("重定向至：【").append(pageTitle).append("】\n\n");
-            } else {
-                result.append("【").append(pageTitle).append("】\n\n");
-            }
-            
-            // 添加图片URL（如果有）
-            if (pageInfo.imageUrl != null && !pageInfo.imageUrl.isEmpty()) {
-                result.append("🖼️ 图片：").append(pageInfo.imageUrl).append("\n\n");
-            }
-            
-            // 添加简短介绍
-            if (pageInfo.extract != null && !pageInfo.extract.isEmpty()) {
-                result.append(pageInfo.extract);
-            } else {
-                result.append("暂无介绍信息");
-            }
-            
-            // 获取并添加基本信息（从infobox表格提取）
-            String basicInfo = extractInfoboxData(pageTitle);
-            if (basicInfo != null && !basicInfo.isEmpty()) {
-                result.append("\n\n━━━ 基本信息 ━━━\n");
-                result.append(basicInfo);
-            }
-            
-            // 在末尾添加页面URL
-            String pageUrl = BASE_URL + "/" + URLEncoder.encode(pageTitle, StandardCharsets.UTF_8);
-            result.append("\n\n🔗 来源：").append(pageUrl);
-            
-            return result.toString().trim();
-            
-        } catch (Exception e) {
-            System.err.println("[MoeGirl] 错误: " + e.getMessage());
-            e.printStackTrace();
-            return "获取信息失败: " + e.getMessage();
-        }
-    }
-    
-    /**
-     * 页面信息封装类
-     */
-    private static class PageInfo {
-        String extract;      // 简短介绍
-        String imageUrl;     // 主图URL
-        
-        PageInfo(String extract, String imageUrl) {
-            this.extract = extract;
-            this.imageUrl = imageUrl;
-        }
-    }
-    
-    // ==================== API方法 ====================
-    
-    /**
-     * 使用OpenSearch API搜索页面标题
-     */
-    private static String searchPageTitle(String keyword) throws IOException {
-        try {
-            Thread.sleep(random.nextInt(500) + 300);
-            
-            String url = API_URL + "?action=opensearch&format=json&limit=5&search=" + 
-                        URLEncoder.encode(keyword, StandardCharsets.UTF_8);
-            
-            Document doc = Jsoup.connect(url)
-                    .userAgent(USER_AGENTS[random.nextInt(USER_AGENTS.length)])
-                    .timeout(TIMEOUT)
-                    .ignoreContentType(true)
-                    .get();
-            
-            String jsonText = doc.body().text();
-            JSONArray jsonArray = JSON.parseArray(jsonText);
-            
-            if (jsonArray.size() >= 2) {
-                JSONArray titles = jsonArray.getJSONArray(1);
-                if (titles != null && !titles.isEmpty()) {
-                    return titles.getString(0);
-                }
-            }
-            
-            return null;
-            
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("中断", e);
-        }
-    }
-    
-    /**
-     * 使用TextExtracts和PageImages API获取页面信息
-     * 一次请求同时获取简短介绍和主图
-     */
-    private static PageInfo getPageInfo(String pageTitle) {
-        try {
-            Thread.sleep(random.nextInt(300) + 200);
-            
-            // 构建API URL，同时请求extracts和pageimages
-            // 注意：prop参数中的|需要被URL编码为%7C
-            String url = API_URL + 
-                "?action=query" +
-                "&format=json" +
-                "&prop=extracts%7Cpageimages" +  // extracts|pageimages，|编码为%7C
-                "&exintro=1" +                     // 只获取介绍部分
-                "&explaintext=1" +                 // 纯文本格式
-                "&exsentences=5" +                 // 限制5句话
-                "&piprop=original" +               // 获取原始图片
-                "&titles=" + URLEncoder.encode(pageTitle, StandardCharsets.UTF_8);
-            
-            System.out.println("[MoeGirl] 请求API获取摘要和图片");
-            
-            Document doc = Jsoup.connect(url)
-                    .userAgent(USER_AGENTS[random.nextInt(USER_AGENTS.length)])
-                    .timeout(TIMEOUT)
-                    .ignoreContentType(true)
-                    .get();
-            
-            String jsonText = doc.body().text();
-            JSONObject json = JSON.parseObject(jsonText);
-            
-            if (json.containsKey("query")) {
-                JSONObject query = json.getJSONObject("query");
-                if (query.containsKey("pages")) {
-                    JSONObject pages = query.getJSONObject("pages");
-                    
-                    // 获取第一个页面的信息
-                    for (String pageId : pages.keySet()) {
-                        JSONObject page = pages.getJSONObject(pageId);
-                        
-                        // 提取文本摘要
-                        String extract = page.getString("extract");
-                        if (extract != null) {
-                            extract = cleanExtract(extract);
-                        }
-                        
-                        // 提取图片URL
-                        String imageUrl = null;
-                        if (page.containsKey("original")) {
-                            imageUrl = page.getJSONObject("original").getString("source");
-                            System.out.println("[MoeGirl] 找到图片: " + imageUrl);
-                        }
-                        
-                        return new PageInfo(extract, imageUrl);
-                    }
-                }
-            }
-            
-            return null;
-            
-        } catch (Exception e) {
-            System.err.println("[MoeGirl] 获取页面信息失败: " + e.getMessage());
-            e.printStackTrace();
             return null;
         }
-    }
-    
-    /**
-     * 清理TextExtracts返回的文本
-     */
-    private static String cleanExtract(String text) {
-        if (text == null || text.isEmpty()) {
-            return "";
-        }
-        
-        // 移除萌娘百科常见的模板提示文字
-        String[] removePatterns = {
-            "本条目介绍的是.*?。.*?，请参见.*?。",
-            "萌娘百科欢迎您参与完善本条目.*?编辑前请阅读.*?。",
-            "欢迎正在阅读这个条目的您协助.*?。",
-            "此页面中存在.*?需要进一步审核的内容。",
-            "提示：本条目的主题不是.*?。"
-        };
-        
-        for (String pattern : removePatterns) {
-            text = text.replaceAll(pattern, "");
-        }
-        
-        // 移除引用标记 [1], [2] 等
-        text = text.replaceAll("\\[\\d+\\]", "");
-        
-        // 移除多余的空行
-        text = text.replaceAll("\n{3,}", "\n\n");
-        
-        return text.trim();
-    }
-    
-    /**
-     * 从页面右侧的基本资料表格中提取信息
-     */
-    private static String extractInfoboxData(String pageTitle) {
-        try {
-            Thread.sleep(random.nextInt(300) + 200);
-            
-            // 使用Parse API获取页面HTML
-            String url = API_URL + 
-                "?action=parse" +
-                "&format=json" +
-                "&prop=text" +
-                "&page=" + URLEncoder.encode(pageTitle, StandardCharsets.UTF_8);
-            
-            System.out.println("[MoeGirl] 获取基本信息表格");
-            
-            Document doc = Jsoup.connect(url)
-                    .userAgent(USER_AGENTS[random.nextInt(USER_AGENTS.length)])
-                    .timeout(TIMEOUT)
-                    .ignoreContentType(true)
-                    .get();
-            
-            String jsonText = doc.body().text();
-            JSONObject json = JSON.parseObject(jsonText);
-            
-            if (!json.containsKey("parse")) {
-                return null;
-            }
-            
-            JSONObject parse = json.getJSONObject("parse");
-            if (!parse.containsKey("text")) {
-                return null;
-            }
-            
-            JSONObject textObj = parse.getJSONObject("text");
-            String html = textObj.getString("*");
-            
-            // 检查是否仍然是重定向页面（有些重定向可能需要手动处理）
-            if (html.contains("重定向") && html.length() < 100) {
-                System.out.println("[MoeGirl] 检测到重定向页面，HTML内容太短");
-                return null;
-            }
-            
-            // MediaWiki API返回的是纯文本格式，不是HTML表格
-            // 从纯文本中提取信息框数据
-            StringBuilder info = new StringBuilder();
-            int count = 0;
-            
-            // 定义需要提取的字段（按优先级）
-            String[] infoKeys = {
-                "本名", "别名", "别号", "发色", "瞳色", "身高", "体重", "年龄", "生日", 
-                "星座", "血型", "声优", "CV", "萌点", "出身地区", "活动范围", "所属团体",
-                "亲属或相关人", "类型", "平台", "开发", "发行", "引擎", "模式", "发行时间",
-                "中文名", "日文名", "英文名", "原名", "译名", "罗马音", "作者", "插画", 
-                "地区", "连载杂志", "丛书", "出版社", "发表期间", "册数", "话数",
-                "作词", "作曲", "编曲", "歌手", "时长", "收录专辑"
-            };
-            
-            // 查找包含infobox信息的文本段落（通常在Art by后面）
-            String searchText = html;
-            int artByIndex = html.indexOf("Art by");
-            if (artByIndex > 0) {
-                searchText = html.substring(artByIndex, Math.min(artByIndex + 5000, html.length()));
-            }
-            
-            // 逐行解析文本，查找键值对（按空白字符分割）
-            String[] lines = searchText.split("\\s+");
-            
-            for (int i = 0; i < lines.length - 1 && count < 30; i++) {
-                String line = lines[i].trim();
-                
-                // 检查是否是我们关注的键
-                for (String key : infoKeys) {
-                    if (line.equals(key)) {
-                        // 下一个元素可能是值
-                        StringBuilder value = new StringBuilder();
-                        int j = i + 1;
-                        
-                        // 收集值，直到遇到下一个键或特殊标记
-                        while (j < lines.length && j < i + 10) {  // 最多向后查找10个元素
-                            String nextLine = lines[j].trim();
-                            
-                            // 检查是否是下一个键
-                            boolean isNextKey = false;
-                            for (String checkKey : infoKeys) {
-                                if (nextLine.equals(checkKey)) {
-                                    isNextKey = true;
-                                    break;
-                                }
-                            }
-                            
-                            if (isNextKey || nextLine.isEmpty() || 
-                                nextLine.startsWith("[") || nextLine.startsWith("(")) {
-                                break;
-                            }
-                            
-                            if (value.length() > 0) value.append(" ");
-                            value.append(nextLine);
-                            j++;
-                        }
-                        
-                        String valueStr = value.toString().trim();
-                        // 清理值：移除引用标记等
-                        valueStr = valueStr.replaceAll("\\[\\d+\\]", "").trim();
-                        
-                        if (!valueStr.isEmpty() && valueStr.length() < 500) {
-                            info.append(key).append("：").append(valueStr).append("\n");
-                            count++;
-                            break;  // 找到后跳出内层循环
-                        }
-                    }
-                }
-            }
-            
-            System.out.println("[MoeGirl] 提取到 " + count + " 个基本信息字段");
-            
-            return info.length() > 0 ? info.toString() : null;
-            
-        } catch (Exception e) {
-            System.err.println("[MoeGirl] 提取基本信息失败: " + e.getMessage());
+
+        String keyword = characterName.trim();
+        System.out.println("[MoeGirl] 查询: " + keyword);
+
+        List<String> candidates = searchCandidates(keyword);
+        if (candidates == null || candidates.isEmpty()) {
+            System.out.println("[MoeGirl] 未找到相关条目");
             return null;
         }
-    }
-    
-    /**
-     * 清理HTML元素的文本内容
-     */
-    private static String cleanText(Element element) {
-        if (element == null) return "";
-        
-        // 移除script、style等标签
-        element.select("script, style, sup.reference").remove();
-        
-        String text = element.text().trim();
-        
-        // 移除引用标记 [1], [2] 等
-        text = text.replaceAll("\\[\\d+\\]", "");
-        
-        // 移除多余空格
-        text = text.replaceAll("\\s+", " ").trim();
-        
-        return text;
-    }
-    
-    /**
-     * 获取页面主图片
-     */
-    private static String getPageImage(String pageTitle) {
-        try {
-            Thread.sleep(random.nextInt(300) + 200);
-            
-            String url = API_URL + "?action=query&format=json&prop=pageimages&piprop=original&titles=" + 
-                        URLEncoder.encode(pageTitle, StandardCharsets.UTF_8);
-            
-            Document doc = Jsoup.connect(url)
-                    .userAgent(USER_AGENTS[random.nextInt(USER_AGENTS.length)])
-                    .timeout(TIMEOUT)
-                    .ignoreContentType(true)
-                    .get();
-            
-            String jsonText = doc.body().text();
-            JSONObject json = JSON.parseObject(jsonText);
-            
-            if (json.containsKey("query")) {
-                JSONObject query = json.getJSONObject("query");
-                if (query.containsKey("pages")) {
-                    JSONObject pages = query.getJSONObject("pages");
-                    // 获取第一个页面
-                    for (String pageId : pages.keySet()) {
-                        JSONObject page = pages.getJSONObject(pageId);
-                        if (page.containsKey("original")) {
-                            String imageUrl = page.getJSONObject("original").getString("source");
-                            System.out.println("[MoeGirl] 找到图片: " + imageUrl);
-                            return imageUrl;
-                        }
-                    }
-                }
+
+        String pageTitle = candidates.get(0);
+        System.out.println("[MoeGirl] 使用搜索第一结果: " + pageTitle);
+
+        InfoboxData data = fetchAndParse(pageTitle);
+        if (data != null) {
+            if (!pageTitle.equals(keyword)) {
+                data.redirectFrom = keyword;
             }
-            
-        } catch (Exception e) {
-            System.out.println("[MoeGirl] 获取图片失败: " + e.getMessage());
+            return data;
         }
-        
+
+        // 只跟随搜索第一结果自身的重定向，不再尝试后续搜索候选。
+        String redirectTarget = resolveRedirect(pageTitle);
+        if (redirectTarget != null && !redirectTarget.equals(pageTitle)) {
+            System.out.println("[MoeGirl] 重定向: " + pageTitle + " → " + redirectTarget);
+            data = fetchAndParse(redirectTarget);
+            if (data != null) {
+                data.redirectFrom = pageTitle;
+                return data;
+            }
+        }
+
+        System.out.println("[MoeGirl] 搜索第一结果未找到信息卡: " + pageTitle);
         return null;
     }
-    
+
+    private static InfoboxData fetchAndParse(String pageTitle) {
+        // 1) 优先用 parse API 获取 HTML
+        String html = fetchViaParse(pageTitle);
+        if (html != null) {
+            // 检查消歧义（即使没有 infobox）
+            if (isDisambiguationPage(html, pageTitle)) {
+                InfoboxData data = new InfoboxData();
+                data.pageTitle = pageTitle;
+                data.sourceUrl = MOEGIRL_URL + "/" + URLEncoder.encode(pageTitle, StandardCharsets.UTF_8);
+                data.isDisambiguation = true;
+                data.disambiguationOptions = parseDisambiguationOptions(html);
+                System.out.println("[MoeGirl] 消歧义页, 选项数: "
+                        + (data.disambiguationOptions != null ? data.disambiguationOptions.size() : 0));
+                return data;
+            }
+
+            InfoboxData data = parseInfoboxFromHtml(html);
+            if (data != null) {
+                finalizeData(data, pageTitle);
+                return data;
+            }
+        }
+
+        // 2) 降级：revisions API 获取 wikitext
+        String wikitext = fetchViaRevisions(pageTitle);
+        if (wikitext != null) {
+            // 检查是否是 wikitext 重定向
+            Matcher redirectMatcher = Pattern.compile(
+                    "(?i)^\\s*#(?:REDIRECT|redirect|重定向)\\s*\\[\\[([^\\]|#]+)").matcher(wikitext);
+            if (redirectMatcher.find()) {
+                return null; // 让调用方处理重定向
+            }
+
+            // 检查消歧义
+            if (isDisambiguationWikitext(wikitext, pageTitle)) {
+                InfoboxData data = new InfoboxData();
+                data.pageTitle = pageTitle;
+                data.sourceUrl = MOEGIRL_URL + "/" + URLEncoder.encode(pageTitle, StandardCharsets.UTF_8);
+                data.isDisambiguation = true;
+                data.disambiguationOptions = parseDisambiguationWikitext(wikitext);
+                System.out.println("[MoeGirl] 消歧义页(wikitext), 选项数: "
+                        + (data.disambiguationOptions != null ? data.disambiguationOptions.size() : 0));
+                return data;
+            }
+
+            InfoboxData data = parseInfoboxFromWikitext(wikitext);
+            if (data != null) {
+                finalizeData(data, pageTitle);
+                return data;
+            }
+        }
+
+        return null;
+    }
+
     /**
-     * 使用Parse API获取页面内容
+     * 解析重定向目标。先查 wikitext（#REDIRECT [[目标]]），再查 HTML
      */
-    private static String getPageContent(String pageTitle) throws IOException {
+    private static String resolveRedirect(String pageTitle) {
+        // 通过 revisions API 快速检查是否重定向
+        String wikitext = fetchViaRevisions(pageTitle);
+        if (wikitext != null) {
+            Pattern redirectPattern = Pattern.compile(
+                    "(?i)^\\s*#(?:REDIRECT|redirect|重定向)\\s*\\[\\[([^\\]|#]+)");
+            Matcher rm = redirectPattern.matcher(wikitext);
+            if (rm.find()) {
+                return rm.group(1).trim();
+            }
+        }
+        // 也检查 parse API 返回的 HTML
+        String html = fetchViaParse(pageTitle);
+        if (html != null) {
+            Document doc = Jsoup.parse(html);
+            Element redirectLink = doc.selectFirst(".redirectText a, .mw-redirect a");
+            if (redirectLink != null) {
+                String title = redirectLink.attr("title");
+                if (title != null && !title.isEmpty()) return title;
+                String text = redirectLink.text().trim();
+                if (!text.isEmpty()) return text;
+            }
+        }
+        return null;
+    }
+
+    private static void finalizeData(InfoboxData data, String pageTitle) {
+        data.pageTitle = pageTitle;
+        data.sourceUrl = MOEGIRL_URL + "/" + URLEncoder.encode(pageTitle, StandardCharsets.UTF_8);
+
+        // 优先使用信息卡内的图片。只有卡片图下载失败/不存在时，才降级到 pageimages。
+        if (data.imageUrl != null && !data.imageUrl.isEmpty()) {
+            String storageUrl = buildStorageUrlFromImageUrl(data.imageUrl);
+            if (storageUrl != null) {
+                data.imagePath = downloadImage(storageUrl, pageTitle);
+                if (data.imagePath != null) {
+                    data.imageUrl = storageUrl;
+                }
+            }
+            if (data.imagePath == null) {
+                data.imagePath = downloadImage(data.imageUrl, pageTitle);
+            }
+        }
+        if (data.imagePath == null) {
+            String storageUrl = fetchImageUrlFromApi(pageTitle);
+            if (storageUrl != null && !storageUrl.isEmpty()) {
+                data.imageUrl = storageUrl;
+                data.imagePath = downloadImage(storageUrl, pageTitle);
+            }
+        }
+        if (data.imageUrl != null && data.imagePath == null) {
+            System.out.println("[MoeGirl] 图片下载失败，将跳过卡片图片");
+        }
+
+        System.out.println("[MoeGirl] 解析完成, 字段数: " + data.fields.size()
+                + ", imageUrl: " + (data.imageUrl != null ? data.imageUrl : "无")
+                + ", imagePath: " + (data.imagePath != null ? data.imagePath : "无")
+                + ", 消歧义: " + data.isDisambiguation);
+    }
+
+    // ==================== 搜索 ====================
+
+    private static List<String> searchCandidates(String keyword) {
+        List<String> result = searchViaApiCandidates(API_URL, keyword);
+        if (result == null || result.isEmpty()) {
+            result = searchViaApiCandidates(FALLBACK_API, keyword);
+        }
+        return result;
+    }
+
+    private static List<String> searchViaApiCandidates(String baseUrl, String keyword) {
         try {
-            Thread.sleep(random.nextInt(500) + 300);
-            
-            String url = API_URL + "?action=parse&format=json&prop=text&page=" + 
-                        URLEncoder.encode(pageTitle, StandardCharsets.UTF_8);
-            
-            Document doc = Jsoup.connect(url)
-                    .userAgent(USER_AGENTS[random.nextInt(USER_AGENTS.length)])
-                    .timeout(TIMEOUT)
-                    .ignoreContentType(true)
-                    .get();
-            
-            String jsonText = doc.body().text();
-            JSONObject json = JSON.parseObject(jsonText);
-            
-            if (json.containsKey("parse")) {
-                JSONObject parse = json.getJSONObject("parse");
-                if (parse.containsKey("text")) {
-                    Object textObj = parse.get("text");
-                    
-                    String html = null;
-                    if (textObj instanceof JSONObject) {
-                        html = ((JSONObject) textObj).getString("*");
-                    } else if (textObj instanceof String) {
-                        html = (String) textObj;
+            String apiUrl = baseUrl + "?action=opensearch&search="
+                    + URLEncoder.encode(keyword, StandardCharsets.UTF_8)
+                    + "&format=json&limit=15";
+
+            try (CloseableHttpClient client = HttpClientPool.createClient()) {
+                HttpGet httpGet = new HttpGet(apiUrl);
+                httpGet.setHeader("Accept", "application/json");
+                httpGet.setHeader("User-Agent", HttpClientPool.getRandomUserAgent());
+                httpGet.setHeader("Referer", baseUrl.replace("/api.php", "/"));
+
+                try (CloseableHttpResponse response = client.execute(httpGet)) {
+                    if (response.getStatusLine().getStatusCode() != 200) return null;
+                    String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+                    JSONArray json = JSONArray.parseArray(body);
+                    if (json == null || json.size() < 2) return null;
+
+                    JSONArray titles = json.getJSONArray(1);
+                    if (titles == null || titles.isEmpty()) return null;
+
+                    List<String> result = new ArrayList<>();
+                    for (int i = 0; i < titles.size(); i++) {
+                        String t = titles.getString(i);
+                        double score = TextMatcher.similarity(keyword, t);
+                        System.out.println("[MoeGirl] 搜索候选: " + t
+                                + " (rank=" + (i + 1) + ", score=" + String.format("%.2f", score) + ")");
+                        result.add(t);
                     }
-                    
+                    return result;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[MoeGirl] 搜索异常 (" + baseUrl + "): " + e.getMessage());
+            return null;
+        }
+    }
+
+    // ==================== HTML 获取（parse API） ====================
+
+    private static String fetchViaParse(String pageTitle) {
+        String html = fetchParseInternal(pageTitle);
+        if (html == null) {
+            sleepMs(1000);
+            html = fetchParseInternal(pageTitle);
+        }
+        return html;
+    }
+
+    private static String fetchParseInternal(String pageTitle) {
+        try {
+            String apiUrl = API_URL + "?action=parse&page="
+                    + URLEncoder.encode(pageTitle, StandardCharsets.UTF_8)
+                    + "&prop=text&format=json";
+
+            try (CloseableHttpClient client = HttpClientPool.createClient()) {
+                HttpGet httpGet = new HttpGet(apiUrl);
+                httpGet.setHeader("User-Agent", HttpClientPool.getRandomUserAgent());
+
+                try (CloseableHttpResponse response = client.execute(httpGet)) {
+                    int status = response.getStatusLine().getStatusCode();
+                    if (status != 200) {
+                        System.err.println("[MoeGirl] Parse API HTTP " + status);
+                        return null;
+                    }
+
+                    String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+                    if (body.startsWith("<") || body.contains("<html")) {
+                        System.err.println("[MoeGirl] Parse API 返回HTML，被拦截");
+                        return null;
+                    }
+
+                    JSONObject json = JSONObject.parseObject(body);
+                    JSONObject parse = json.getJSONObject("parse");
+                    if (parse == null) return null;
+
+                    JSONObject text = parse.getJSONObject("text");
+                    if (text == null) return null;
+
+                    String html = text.getString("*");
+                    if (html == null || html.isEmpty()) return null;
+
+                    System.out.println("[MoeGirl] HTML获取成功 (parse), 长度: " + html.length());
                     return html;
                 }
             }
-            
+        } catch (Exception e) {
+            System.err.println("[MoeGirl] Parse API 异常: " + e.getMessage());
             return null;
-            
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IOException("中断", e);
         }
     }
-    
-    /**
-     * 格式化并提取关键信息
-     */
-    private static String formatContent(String title, String content, String imageUrl) {
-        StringBuilder result = new StringBuilder();
-        result.append("【").append(title).append("】\n");
-        
-        // 如果有图片，添加图片链接
-        if (imageUrl != null && !imageUrl.isEmpty()) {
-            result.append("🖼️ 图片：").append(imageUrl).append("\n");
-        }
-        
-        result.append("\n");
-        
-        // 检查是否包含HTML标签
-        boolean isHtml = content.contains("<") && (
-            content.contains("<p>") || 
-            content.contains("<div") || 
-            content.contains("<table") ||
-            content.contains("<img") ||
-            content.contains("<span")
-        );
-        
-        if (!isHtml) {
-            // 纯文本格式，直接格式化输出
-            return formatPlainText(title, content);
-        }
-        
-        // HTML格式，使用Jsoup解析为HTML片段
-        // MediaWiki API返回的是HTML片段，不是完整文档，需要用parseBodyFragment
-        Document doc = Jsoup.parseBodyFragment(content);
-        Element body = doc.body();
-        
-        // 提取信息框
-        Element infobox = doc.selectFirst("table.infobox, table.moe-infobox, table.wikitable");
-        
-        if (infobox != null) {
-            String info = extractInfobox(infobox);
-            if (!info.isEmpty()) {
-                result.append("━━━ 基本信息 ━━━\n").append(info).append("\n");
+
+    // ==================== HTML infobox 解析 ====================
+
+    private static InfoboxData parseInfoboxFromHtml(String html) {
+        Document doc = Jsoup.parse(html);
+
+        Element bestElement = null;
+        InfoboxData bestData = null;
+        int bestScore = Integer.MIN_VALUE;
+
+        for (Element candidate : collectInfoboxCandidates(doc)) {
+            if (shouldSkipInfoboxCandidate(candidate)) continue;
+
+            InfoboxData data = parseInfoboxElement(candidate);
+            int score = scoreInfoboxCandidate(candidate, data);
+            if (score > bestScore) {
+                bestScore = score;
+                bestElement = candidate;
+                bestData = data;
             }
         }
-        
-        // 提取简介
-        String summary = extractSummary(doc);
-        if (!summary.isEmpty()) {
-            result.append("━━━ 简介 ━━━\n").append(summary);
+
+        if (bestData == null || bestScore < 25) {
+            System.out.println("[MoeGirl] HTML中未找到 infobox");
+            return null;
         }
-        
-        // 如果HTML解析没有结果，fallback到纯文本解析
-        int baseLength = title.length() + (imageUrl != null ? imageUrl.length() + 10 : 0) + 10;
-        if (result.length() <= baseLength) {
-            // 使用原始content而不是body.text()，因为后者会压缩所有换行符
-            // 先提取纯文本信息
-            String plainTextResult = formatPlainText(title, content);
-            // 如果有图片，添加图片链接
-            if (imageUrl != null && !imageUrl.isEmpty()) {
-                StringBuilder withImage = new StringBuilder();
-                withImage.append("【").append(title).append("】\n");
-                withImage.append("🖼️ 图片：").append(imageUrl).append("\n\n");
-                // 去掉原始结果中的标题行
-                String contentOnly = plainTextResult.substring(plainTextResult.indexOf("】\n\n") + 3);
-                withImage.append(contentOnly);
-                return withImage.toString();
-            }
-            return plainTextResult;
-        }
-        
-        return result.length() > title.length() + 10 ? result.toString().trim() : "未找到详细信息";
+
+        System.out.println("[MoeGirl] 匹配到信息卡候选: <" + bestElement.tagName()
+                + "> class=\"" + bestElement.className() + "\" score=" + bestScore);
+        return bestData;
     }
-    
-    /**
-     * 格式化纯文本内容
-     */
-    private static String formatPlainText(String title, String text) {
-        StringBuilder result = new StringBuilder();
-        result.append("【").append(title).append("】\n\n");
-        
-        // 清理文本
-        text = text.trim();
-        
-        // 1. 提取基本信息（通常在开头部分，包含键值对形式的数据）
-        String basicInfo = extractBasicInfo(text);
-        if (!basicInfo.isEmpty()) {
-            result.append("━━━ 基本信息 ━━━\n").append(basicInfo).append("\n");
+
+    private static Set<Element> collectInfoboxCandidates(Document doc) {
+        Set<Element> candidates = new LinkedHashSet<>();
+        for (String selector : INFOBOX_SELECTORS) {
+            candidates.addAll(doc.select(selector));
         }
-        
-        // 2. 提取简介（在目录之前的叙述性段落）
-        String summary = extractTextSummary(text);
-        if (!summary.isEmpty()) {
-            result.append("━━━ 简介 ━━━\n").append(summary);
+
+        // 兜底扫描结构像信息卡的块，不依赖固定 class 或标签。
+        for (Element table : doc.select("table")) {
+            if (table.select("th").size() >= 2 || table.select("img").size() > 0) {
+                candidates.add(table);
+            }
         }
-        
-        return result.length() > title.length() + 15 ? result.toString().trim() : "未找到详细信息";
+        for (Element block : doc.select("aside, section, div")) {
+            int fieldRows = block.select("tr:has(th):has(td), dl:has(dt):has(dd)").size();
+            int imgs = block.select("img").size();
+            String text = cleanValue(block.text());
+            if ((fieldRows >= 2 || (imgs > 0 && fieldRows >= 1))
+                    && text.length() <= 6000) {
+                candidates.add(block);
+            }
+        }
+        return candidates;
     }
-    
-    /**
-     * 提取基本信息（键值对形式）
-     */
-    private static String extractBasicInfo(String text) {
-        StringBuilder info = new StringBuilder();
-        
-        // 常见的信息字段 - 扩展更多字段
-        String[] infoKeys = {
-            // 角色信息
-            "中文名", "日文名", "英文名", "别名", "罗马音", "本名",
-            "发色", "瞳色", "身高", "体重", "年龄", "生日", "星座", "性别", "血型",
-            "声优", "CV", "配音", "演员",
-            // 作品信息
-            "类型", "平台", "开发", "发行", "制作人", "总监", "编剧", "美术", "音乐",
-            "模式", "发售日", "引擎", "改编", "原作",
-            // 其他
-            "所属", "职业", "等级", "出场作品", "登场作品", "萌点", "特征"
-        };
-        
-        // 需要跳过的关键词
-        String[] skipKeywords = {
-            "[编辑", "编辑源代码", "游戏系统", "角色列表", "世界观",
-            "剧情", "开发历程", "评价", "影响", "相关",
-            "目录", "参见", "注释", "外部链接", "官方网站"
-        };
-        
-        String[] lines = text.split("\n");
-        int infoCount = 0;
-        
-        // 第一遍：提取明确的键值对
-        for (int i = 0; i < lines.length && infoCount < 30; i++) {
-            String line = lines[i].trim();
-            if (line.isEmpty()) continue;
-            
-            // 跳过包含skipKeywords的行
-            boolean shouldSkip = false;
-            for (String skip : skipKeywords) {
-                if (line.contains(skip)) {
-                    shouldSkip = true;
-                    break;
-                }
-            }
-            if (shouldSkip) continue;
-            
-            // 检查是否包含信息键
-            for (String key : infoKeys) {
-                // 查找"键"开头或"键 "的模式
-                if (line.startsWith(key) || line.contains(" " + key + " ")) {
-                    String value = extractValue(line, key, lines, i, infoKeys);
-                    
-                    if (value != null && !value.isEmpty() && value.length() < 200) {
-                        // 清理value
-                        value = cleanValue(value);
-                        
-                        // 跳过包含skipKeywords的值
-                        boolean skipValue = false;
-                        for (String skip : skipKeywords) {
-                            if (value.contains(skip)) {
-                                skipValue = true;
-                                break;
-                            }
-                        }
-                        
-                        if (!skipValue && !value.isEmpty() && value.length() > 1) {
-                            // 避免重复添加相同的键
-                            if (!info.toString().contains(key + "：")) {
-                                info.append(key).append("：").append(value).append("\n");
-                                infoCount++;
-                            }
-                        }
-                    }
-                    break;
-                }
+
+    private static boolean shouldSkipInfoboxCandidate(Element candidate) {
+        String marker = (candidate.tagName() + " " + candidate.id() + " "
+                + candidate.className() + " " + candidate.attr("role")).toLowerCase();
+
+        boolean explicitlyInfo = marker.contains("info") || marker.contains("templatebox")
+                || candidate.hasAttr("itemscope");
+        if (marker.contains("mw-parser-output")) return true;
+        if (!explicitlyInfo && marker.contains("wikitable")) return true;
+        if (!explicitlyInfo && (marker.contains("nav") || marker.contains("toc")
+                || marker.contains("footer") || marker.contains("catlinks")
+                || marker.contains("ztdh") || marker.contains("collapsible"))) {
+            return true;
+        }
+
+        String text = cleanValue(candidate.text());
+        if (text.length() > 9000) return true;
+
+        int rows = candidate.select("tr").size();
+        int fields = candidate.select("tr:has(th):has(td)").size();
+        if (!explicitlyInfo && rows > 120) return true;
+        return !explicitlyInfo && fields == 0 && candidate.select("img").isEmpty();
+    }
+
+    private static InfoboxData parseInfoboxElement(Element infobox) {
+        InfoboxData data = new InfoboxData();
+
+        // 提取图片
+        Element img = extractInfoboxImage(infobox);
+        if (img != null) {
+            String src = img.attr("src");
+            if (src.isEmpty()) src = img.attr("data-src");
+            if (!src.isEmpty()) {
+                if (src.startsWith("//")) src = "https:" + src;
+                data.imageUrl = normalizeInfoboxImageUrl(src);
             }
         }
-        
-        return info.toString().trim();
+
+        // 解析 key-value 行
+        parseInfoboxRows(infobox, data);
+
+        return (data.fields.isEmpty() && data.imageUrl == null) ? null : data;
     }
-    
-    /**
-     * 从行中提取值
-     */
-    private static String extractValue(String line, String key, String[] lines, int currentIndex, String[] allKeys) {
-        // 尝试多种格式提取值
-        
-        // 格式1: 键：值 或 键 值
-        int keyIndex = line.indexOf(key);
-        if (keyIndex >= 0) {
-            String after = line.substring(keyIndex + key.length()).trim();
-            // 去掉可能的冒号、空格
-            after = after.replaceFirst("^[：:\\s]+", "");
-            
-            if (!after.isEmpty()) {
-                // 检查是否在同一行有其他键，如果有则截断
-                for (String otherKey : allKeys) {
-                    if (!otherKey.equals(key) && after.contains(otherKey)) {
-                        int otherKeyIndex = after.indexOf(otherKey);
-                        after = after.substring(0, otherKeyIndex).trim();
-                        break;
-                    }
-                }
-                return after;
+
+    private static int scoreInfoboxCandidate(Element candidate, InfoboxData data) {
+        if (data == null) return Integer.MIN_VALUE;
+
+        int fields = data.fields.size();
+        int sections = 0;
+        int fullWidthRows = 0;
+        for (InfoboxRow row : data.cardRows) {
+            if (row.type == InfoboxRow.Type.SECTION) sections++;
+            if (row.type == InfoboxRow.Type.FULL_WIDTH) fullWidthRows++;
+        }
+
+        String marker = (candidate.tagName() + " " + candidate.id() + " "
+                + candidate.className()).toLowerCase();
+        int score = fields * 12 + sections * 4 + fullWidthRows * 3;
+        if (isExplicitInfoboxMarker(marker)) score += 240;
+        if (data.imageUrl != null) score += 20;
+        if (!data.captionLines.isEmpty()) score += 6;
+        if (marker.contains("info")) score += 18;
+        if (marker.contains("templatebox") || marker.contains("infobox")) score += 20;
+        if (candidate.hasAttr("itemscope")) score += 12;
+
+        String text = cleanValue(candidate.text());
+        if (text.length() > 5000) score -= 30;
+        if (candidate.select("a").size() > Math.max(40, fields * 8 + 20)) score -= 20;
+        if (marker.contains("nav") || marker.contains("toc") || marker.contains("ztdh")
+                || marker.contains("wikitable") || marker.contains("mw-parser-output")) score -= 120;
+        if (fields < 2 && data.imageUrl == null) score -= 40;
+        if (fields > 36) score -= 180;
+        if (fields > 48) score -= 360;
+        if (looksLikeListTable(data)) score -= 420;
+        return score;
+    }
+
+    private static boolean isExplicitInfoboxMarker(String marker) {
+        return marker.contains("moe-infobox")
+                || marker.contains("infotemplatebox")
+                || marker.contains(" infobox")
+                || marker.endsWith("infobox")
+                || marker.contains("infoBox".toLowerCase());
+    }
+
+    private static boolean looksLikeListTable(InfoboxData data) {
+        if (data == null || data.cardRows == null || data.cardRows.size() < 8) return false;
+
+        int fieldCount = 0;
+        int listLikeCount = 0;
+        for (InfoboxRow row : data.cardRows) {
+            if (row.type != InfoboxRow.Type.FIELD) continue;
+            fieldCount++;
+            String label = row.label == null ? "" : row.label.trim();
+            String value = row.value == null ? "" : row.value.trim();
+            if (label.matches("^第\\s*\\d+\\s*[话話集期回]$")
+                    || label.matches(".*(委员会|学生会|学院|学园|学部|部门|事务局|研究部|开发部|小队|部|团|队|班|室|局|会)$")
+                    || countSeparators(value) >= 8) {
+                listLikeCount++;
             }
         }
-        
-        // 格式2: 键在单独一行，值在下一行
-        if (line.trim().equals(key) && currentIndex + 1 < lines.length) {
-            String nextLine = lines[currentIndex + 1].trim();
-            // 确保下一行不是另一个键
-            for (String k : allKeys) {
-                if (nextLine.startsWith(k)) {
-                    return null;
-                }
-            }
-            return nextLine;
-        }
-        
-        return null;
+        return fieldCount >= 10 && listLikeCount >= Math.max(6, fieldCount / 2);
     }
-    
-    /**
-     * 清理值内容
-     */
-    private static String cleanValue(String value) {
-        if (value == null) return "";
-        
-        // 去除引用标记 [1], [2] 等
-        value = value.replaceAll("\\[\\d+\\]", "");
-        
-        // 去除多余的空格
-        value = value.replaceAll("\\s+", " ").trim();
-        
-        // 去除开头的特殊字符
-        value = value.replaceFirst("^[：:\\-—]+", "").trim();
-        
-        return value;
-    }
-    
-    /**
-     * 提取文本简介
-     */
-    private static String extractTextSummary(String text) {
-        // 过滤掉无用的提示信息
-        String[] skipPrefixes = {
-            "本条目介绍的是", "萌娘百科欢迎您", "欢迎正在阅读",
-            "此页面中存在", "提示", "注意", "关于", "请参见",
-            "编辑前请阅读", "参与编辑", "警告", "游戏数据或信息受",
-            "中国大陆", "台湾", "韩国", "日本", "北美", "欧洲"
-        };
-        
-        String[] skipContains = {
-            "萌娘百科祝", "度过愉快的时光", "☆Kira~",
-            "协助 编辑", "查找相关资料", "条目编辑规范",
-            "Wiki入门", "请注意：", "版权归", "Special:", "index.php",
-            "<img", "srcset", "style=", "[编辑", "编辑源代码"
-        };
-        
-        // 提取目录之前的内容
-        int tocIndex = text.indexOf("目录");
-        String intro = tocIndex > 0 ? text.substring(0, tocIndex).trim() : text;
-        
-        // 分段处理
-        String[] lines = intro.split("\n");
-        StringBuilder summary = new StringBuilder();
-        int validLines = 0;
-        boolean foundMainDescription = false;
-        
-        for (String line : lines) {
-            line = line.trim();
-            
-            // 跳过空行
-            if (line.isEmpty() || validLines >= 5) continue;
-            
-            // 跳过特定前缀
-            boolean skip = false;
-            for (String prefix : skipPrefixes) {
-                if (line.startsWith(prefix)) {
-                    skip = true;
-                    break;
-                }
-            }
-            
-            // 跳过包含特定文本
-            if (!skip) {
-                for (String contains : skipContains) {
-                    if (line.contains(contains)) {
-                        skip = true;
-                        break;
-                    }
-                }
-            }
-            
-            // 跳过太短的行
-            if (!skip && line.length() < 20) {
-                skip = true;
-            }
-            
-            // 跳过看起来像键值对的行（但允许更长的描述性文本）
-            if (!skip && line.matches("^[^\\s]{1,8}\\s+[^\\s]+$")) {
-                skip = true;
-            }
-            
-            // 优先查找包含作品名称或描述性关键词的段落
-            boolean isMainDescription = line.contains("是一款") || line.contains("是一部") || 
-                                       line.contains("讲述") || line.contains("故事") ||
-                                       line.contains("描述") || line.contains("以");
-            
-            // 添加有效行
-            if (!skip && line.length() >= 20) {
-                if (isMainDescription) {
-                    // 优先添加主要描述
-                    summary.insert(0, line + "\n");
-                    foundMainDescription = true;
-                    validLines++;
-                } else if (validLines < 3 || !foundMainDescription) {
-                    summary.append(line).append("\n");
-                    validLines++;
-                }
-            }
-        }
-        
-        String result = summary.toString().trim();
-        
-        // 限制长度
-        return result.length() > 500 ? result.substring(0, 500) + "..." : result;
-    }
-    
-    /**
-     * 提取信息框
-     */
-    private static String extractInfobox(Element table) {
-        StringBuilder sb = new StringBuilder();
-        Elements rows = table.select("tr");
-        
-        // 扩展的关键字段
-        String[] relevantKeys = {
-            // 角色信息
-            "中文名", "日文名", "英文名", "别名", "罗马音", "本名",
-            "cv", "配音", "声优", "演员",
-            "性别", "年龄", "生日", "星座", "血型",
-            "身高", "体重", "三围",
-            "发色", "瞳色", "肤色",
-            "萌点", "特征", "职业", "所属", "出身", "居住地",
-            "出场作品", "登场作品",
-            // 作品信息
-            "类型", "原作", "作者", "编剧", "导演", "制作人",
-            "平台", "开发", "发行", "引擎", "模式",
-            "发售日", "发行日期", "首播", "连载",
-            "音乐", "美术", "总监", "制作",
-            "集数", "话数", "状态"
-        };
-        
-        // 需要跳过的关键词
-        String[] skipKeys = {
-            "相关图片", "登场集数", "使用道具", "参考资料", "注释"
-        };
-        
+
+    private static int countSeparators(String value) {
         int count = 0;
-        
-        for (Element row : rows) {
-            if (count >= 25) break;  // 增加提取数量上限
-            
-            Elements ths = row.select("th");
-            Elements tds = row.select("td");
-            
-            if (ths.isEmpty() || tds.isEmpty()) continue;
-            
-            String key = cleanText(ths.first()).replaceAll("[:：\\s]+$", "");
-            String value = cleanText(tds.first());
-            
-            if (key.isEmpty() || value.isEmpty()) continue;
-            
-            // 跳过不需要的字段
-            boolean shouldSkip = false;
-            for (String skip : skipKeys) {
-                if (key.contains(skip)) {
-                    shouldSkip = true;
-                    break;
-                }
-            }
-            if (shouldSkip) continue;
-            
-            // 值的长度限制（放宽一些）
-            if (value.length() > 200) {
-                value = value.substring(0, 200) + "...";
-            }
-            
-            // 检查是否为相关字段
-            boolean isRelevant = false;
-            for (String relevantKey : relevantKeys) {
-                if (key.toLowerCase().contains(relevantKey.toLowerCase()) ||
-                    relevantKey.toLowerCase().contains(key.toLowerCase())) {
-                    isRelevant = true;
-                    break;
-                }
-            }
-            
-            // 只添加相关字段
-            if (isRelevant) {
-                sb.append(key).append("：").append(value).append("\n");
+        for (int i = 0; i < value.length(); i++) {
+            char c = value.charAt(i);
+            if (c == '、' || c == '·' || c == '•' || c == '?' || c == '，' || c == ',') {
                 count++;
             }
         }
-        
-        return sb.toString();
+        return count;
     }
-    
-    /**
-     * 提取摘要（优化版）
-     */
-    private static String extractSummary(Document doc) {
-        // 移除编辑提示框和不需要的元素
-        doc.select(".editnotice, .mw-editnotice, .notice, .hatnote, " +
-                   ".dablink, .catlinks, .mw-warning, .editoptions, " +
-                   ".toc, #toc").remove();
-        
-        Elements paragraphs = doc.select("p");
-        StringBuilder summary = new StringBuilder();
-        int validParaCount = 0;
-        
-        for (Element p : paragraphs) {
-            String text = cleanText(p);
-            
-            // 跳过太短的段落
-            if (text.length() < 25) continue;
-            
-            // 跳过编辑提示
-            if (isEditNotice(text)) continue;
-            
-            // 跳过只包含标点符号的段落
-            if (text.matches("^[\\s\\p{P}]*$")) continue;
-            
-            // 添加有效段落（段落之间用换行分隔）
-            summary.append(text).append("\n");
-            validParaCount++;
-            
-            // 最多取前2-3个有效段落，控制总长度
-            if (validParaCount >= 2 || summary.length() > 350) {
-                break;
+
+    private static Element extractInfoboxImage(Element infobox) {
+        // 优先查找专用的图片容器
+        Element imgContainer = infobox.selectFirst(".infobox-image, .infobox-main-image, .infobox-image-container");
+        if (imgContainer != null) {
+            Element img = imgContainer.selectFirst("img");
+            if (img != null) return img;
+        }
+        // 取 infobox 内第一个 img
+        return infobox.selectFirst("img");
+    }
+
+    private static String normalizeInfoboxImageUrl(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank()) return imageUrl;
+
+        String url = imageUrl.trim();
+        String marker = "/media/thumb/";
+        int markerIndex = url.indexOf(marker);
+        if (url.contains("box.moegirl.icu") && markerIndex >= 0) {
+            int fileStart = markerIndex + marker.length();
+            int fileEnd = url.lastIndexOf('/');
+            if (fileEnd > fileStart) {
+                return url.substring(0, markerIndex) + "/media/" + url.substring(fileStart, fileEnd);
             }
         }
-        
-        String result = summary.toString().trim();
-        
-        // 限制总长度
-        return result.length() > 400 ? result.substring(0, 400) + "..." : result;
+        return url;
     }
-    
-    /**
-     * 判断是否为编辑提示文本
-     */
-    private static boolean isEditNotice(String text) {
-        String[] noticeKeywords = {
-            "萌娘百科欢迎",
-            "欢迎正在阅读",
-            "萌娘百科祝",
-            "度过愉快的时光",
-            "Kira~",
-            "参与完善本条目",
-            "协助 编辑",
-            "编辑本条目",
-            "查找相关资料",
-            "Wiki入门",
-            "条目编辑规范",
-            "本条目介绍的是",
-            "关于其他",
-            "请参见",
-            "此页面中存在",
-            "请注意：",
-            "不要添加",
-            "版权归",
-            "未经允许",
-            "游戏数据或信息受",
-            "您可能想要",
-            "消歧义",
-            "重定向自"
-        };
-        
-        for (String keyword : noticeKeywords) {
-            if (text.contains(keyword)) {
-                return true;
+
+    private static String buildStorageUrlFromImageUrl(String imageUrl) {
+        if (imageUrl == null || imageUrl.isBlank() || imageUrl.contains("storage.moegirl.org.cn")) {
+            return null;
+        }
+
+        String marker = "/media/";
+        int markerIndex = imageUrl.indexOf(marker);
+        if (!imageUrl.contains("box.moegirl.icu") || markerIndex < 0) {
+            return null;
+        }
+
+        String encodedFileName = imageUrl.substring(markerIndex + marker.length());
+        int queryIndex = encodedFileName.indexOf('?');
+        if (queryIndex >= 0) {
+            encodedFileName = encodedFileName.substring(0, queryIndex);
+        }
+        int slashIndex = encodedFileName.indexOf('/');
+        if (slashIndex >= 0) {
+            encodedFileName = encodedFileName.substring(0, slashIndex);
+        }
+        if (encodedFileName.isBlank()) return null;
+
+        try {
+            String fileName = URLDecoder.decode(encodedFileName, StandardCharsets.UTF_8);
+            String hash = md5Hex(fileName);
+            if (hash == null || hash.length() < 2) return null;
+            return "https://storage.moegirl.org.cn/moegirl/commons/"
+                    + hash.charAt(0) + "/" + hash.substring(0, 2) + "/" + encodedFileName;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static String md5Hex(String value) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("MD5");
+            byte[] hash = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+            StringBuilder sb = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                sb.append(String.format("%02x", b & 0xff));
+            }
+            return sb.toString();
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static void parseInfoboxRows(Element infobox, InfoboxData data) {
+        Elements rows = topLevelRows(infobox);
+        if (rows.isEmpty()) {
+            // 非 table 结构：尝试 div 中的 key-value 对
+            parseInfoboxDivs(infobox, data);
+            return;
+        }
+
+        for (Element row : rows) {
+            Elements ths = directChildren(row, "th");
+            Elements tds = directChildren(row, "td");
+
+            // 节标题行：只有 th 没有 td，或 td[colspan] 的标题行
+            if (tds.isEmpty() && ths.size() == 1) {
+                String section = cleanCellText(ths.first());
+                if (!section.isEmpty()) {
+                    data.cardRows.add(InfoboxRow.section(section, extractBackgroundColor(ths.first())));
+                }
+                continue;
+            }
+            if (tds.size() == 1 && ths.isEmpty() && tds.first().hasAttr("colspan")) {
+                Element td = tds.first();
+                if (td.selectFirst("img") != null) {
+                    data.captionLines.addAll(extractCaptionLines(td));
+                    continue;
+                }
+
+                String fullText = cleanCellText(td);
+                if (fullText.isEmpty()) continue;
+
+                String backgroundColor = extractBackgroundColor(td);
+                boolean looksLikeSection = (td.selectFirst("b, strong") != null || backgroundColor != null)
+                        && fullText.length() <= 30
+                        && !fullText.contains("：")
+                        && !fullText.contains(":")
+                        && !fullText.contains("、");
+                if (looksLikeSection) {
+                    data.cardRows.add(InfoboxRow.section(fullText, backgroundColor));
+                } else {
+                    data.cardRows.add(InfoboxRow.fullWidth(fullText, backgroundColor, hasVisibleLinks(td)));
+                    addDerivedFieldsFromFullLine(fullText, data);
+                }
+                continue;
+            }
+
+            // 跳过没有 key-value 对的行
+            if (tds.isEmpty()) continue;
+
+            Element keyElement = ths.isEmpty() ? tds.first() : ths.first();
+            Element valueElement = ths.isEmpty() && tds.size() >= 2 ? tds.get(1) : tds.first();
+
+            saveHtmlField(cleanCellText(keyElement), cleanCellText(valueElement),
+                    hasVisibleLinks(valueElement), data);
+        }
+    }
+
+    private static Elements topLevelRows(Element infobox) {
+        Element table = infobox.tagName().equalsIgnoreCase("table")
+                ? infobox
+                : firstOwnTable(infobox);
+        Elements rows = new Elements();
+        if (table == null) return rows;
+
+        for (Element child : table.children()) {
+            if (child.tagName().equalsIgnoreCase("tr")) {
+                rows.add(child);
+            } else if (child.tagName().equalsIgnoreCase("tbody")
+                    || child.tagName().equalsIgnoreCase("thead")
+                    || child.tagName().equalsIgnoreCase("tfoot")) {
+                for (Element nested : child.children()) {
+                    if (nested.tagName().equalsIgnoreCase("tr")) {
+                        rows.add(nested);
+                    }
+                }
             }
         }
-        
-        return false;
+        return rows;
+    }
+
+    private static Element firstOwnTable(Element element) {
+        for (Element child : element.children()) {
+            if (child.tagName().equalsIgnoreCase("table")) return child;
+        }
+        return null;
+    }
+
+    private static void saveHtmlField(String key, String value, boolean linkLike, InfoboxData data) {
+        if (key == null || value == null) return;
+
+        key = key.trim();
+        value = cleanValue(value);
+        if (key.isEmpty() || value.isEmpty()) return;
+
+        if (key.startsWith("分类:") || key.startsWith("Category:")) return;
+        if (key.length() > 24) return;
+        if (key.length() <= 2 && (key.equals("色") || key.equals("发") || key.equals("瞳"))) return;
+
+        data.fields.put(key, value);
+        data.cardRows.add(InfoboxRow.field(key, value, linkLike));
+    }
+
+    private static Elements directChildren(Element row, String tagName) {
+        Elements result = new Elements();
+        for (Element child : row.children()) {
+            if (child.tagName().equalsIgnoreCase(tagName)) {
+                result.add(child);
+            }
+        }
+        return result;
+    }
+
+    private static String cleanCellText(Element element) {
+        Element clone = element.clone();
+        clone.select(".heimu, span.heimu, sup.reference, .reference").remove();
+        return cleanValue(clone.text());
+    }
+
+    private static List<String> extractCaptionLines(Element mediaCell) {
+        List<String> lines = new ArrayList<>();
+        Element clone = mediaCell.clone();
+        clone.select("a.image, img").remove();
+
+        String text = cleanValue(clone.text());
+        if (text.isEmpty()) return lines;
+
+        int authorIdx = text.indexOf("作者");
+        if (authorIdx > 0) {
+            String first = text.substring(0, authorIdx).trim();
+            String second = text.substring(authorIdx).trim();
+            if (!first.isEmpty()) lines.add(first);
+            if (!second.isEmpty()) lines.add(second);
+        } else {
+            lines.add(text);
+        }
+        return lines;
+    }
+
+    private static boolean hasVisibleLinks(Element element) {
+        Element clone = element.clone();
+        clone.select(".heimu, span.heimu").remove();
+        return !clone.select("a[href]").isEmpty();
+    }
+
+    private static String extractBackgroundColor(Element element) {
+        String bgcolor = element.attr("bgcolor");
+        if (bgcolor != null && !bgcolor.isBlank()) {
+            return normalizeHexColor(bgcolor);
+        }
+
+        String style = element.attr("style");
+        if (style == null || style.isBlank()) return null;
+
+        Matcher matcher = Pattern.compile("(?i)(?:background(?:-color)?\\s*:\\s*)?(#[0-9a-f]{6})")
+                .matcher(style);
+        if (matcher.find()) {
+            return normalizeHexColor(matcher.group(1));
+        }
+        return null;
+    }
+
+    private static String normalizeHexColor(String color) {
+        if (color == null) return null;
+        String value = color.trim();
+        if (value.startsWith("#")) value = value.substring(1);
+        if (value.matches("(?i)[0-9a-f]{6}")) {
+            return value.toUpperCase();
+        }
+        return null;
+    }
+
+    private static void addDerivedFieldsFromFullLine(String text, InfoboxData data) {
+        String[] parts = text.split("\\s+(?=[^\\s：:]{1,10}[：:])");
+        for (String part : parts) {
+            int separator = findFirstSeparator(part);
+            if (separator <= 0 || separator >= part.length() - 1) continue;
+
+            String key = part.substring(0, separator).trim();
+            String value = cleanValue(part.substring(separator + 1).trim());
+            if (!key.isEmpty() && key.length() <= 10 && !value.isEmpty()) {
+                data.fields.putIfAbsent(key, value);
+            }
+        }
+    }
+
+    private static void parseInfoboxDivs(Element infobox, InfoboxData data) {
+        // 处理非 table 的 infobox（如 div.infotemplatebox）
+        for (Element dt : infobox.select("dt")) {
+            Element valueElement = nextMeaningfulSibling(dt, "dd");
+            if (valueElement != null) {
+                saveHtmlField(cleanCellText(dt), cleanCellText(valueElement),
+                        hasVisibleLinks(valueElement), data);
+            }
+        }
+
+        for (Element label : infobox.select("[class*=label], [class*=Label], [class*=key], [class*=Key]")) {
+            Element valueElement = findValueElement(label);
+            if (valueElement != null) {
+                saveHtmlField(cleanCellText(label), cleanCellText(valueElement),
+                        hasVisibleLinks(valueElement), data);
+            }
+        }
+
+        if (!data.cardRows.isEmpty()) return;
+
+        // 查找所有包含 key-value 结构的元素
+        Elements items = infobox.select("[class*=info-item], [class*=infobox-item], .infobox-row, tr, .row");
+        if (items.isEmpty()) {
+            // 回退：查找所有 dt/dd 对或有 label/value 结构的元素
+            items = infobox.select("dt, dd, [class*=label], [class*=value], [class*=key], [class*=val]");
+        }
+        // 对于 div 结构，尝试提取其中所有文本行
+        if (items.isEmpty()) {
+            // 最后的回退：从 div 中提取所有文本，按行解析
+            String text = infobox.text();
+            for (String line : text.split("\\s{2,}")) {
+                line = line.trim();
+                int colonIdx = findFirstSeparator(line);
+                if (colonIdx > 0 && colonIdx < line.length() - 1) {
+                    String key = line.substring(0, colonIdx).trim();
+                    String value = cleanValue(line.substring(colonIdx + 1).trim());
+                    if (!key.isEmpty() && !value.isEmpty() && key.length() <= 20) {
+                        data.fields.put(key, value);
+                        data.cardRows.add(InfoboxRow.field(key, value, false));
+                    }
+                }
+            }
+        }
+    }
+
+    private static Element nextMeaningfulSibling(Element element, String tagName) {
+        Element sibling = element.nextElementSibling();
+        while (sibling != null) {
+            if (sibling.tagName().equalsIgnoreCase(tagName)) return sibling;
+            if (!cleanCellText(sibling).isEmpty()) return null;
+            sibling = sibling.nextElementSibling();
+        }
+        return null;
+    }
+
+    private static Element findValueElement(Element label) {
+        Element parent = label.parent();
+        if (parent != null) {
+            Element value = parent.selectFirst("[class*=value], [class*=Value], [class*=val], [class*=Val]");
+            if (value != null && value != label) return value;
+        }
+
+        Element sibling = label.nextElementSibling();
+        if (sibling != null) return sibling;
+        return null;
+    }
+
+    private static int findFirstSeparator(String line) {
+        for (int i = 0; i < line.length(); i++) {
+            char c = line.charAt(i);
+            if (c == '：' || c == ':' || c == '=') return i;
+        }
+        return -1;
+    }
+
+    // ==================== 数据清洗 ====================
+
+    private static String cleanValue(String raw) {
+        if (raw == null || raw.isEmpty()) return "";
+
+        String result = raw;
+
+        // 移除隐藏/heimu 内容
+        result = result.replaceAll("(?s)<span[^>]*class=\"[^\"]*heimu[^\"]*\"[^>]*>.*?</span>", "");
+
+        // 移除脚注 [1] [2] 等
+        result = result.replaceAll("\\[\\d+\\]", "");
+
+        // 移除 HTML 标签（但保留文本内容）
+        result = result.replaceAll("<[^>]+>", "");
+
+        // 解码 HTML 实体
+        result = Parser.unescapeEntities(result, false);
+
+        // 移除零宽字符和不可见字符
+        result = result.replaceAll("[\\u200B-\\u200F\\uFEFF]", "");
+
+        // 移除多余空白
+        result = result.replaceAll("\\s+", " ").trim();
+
+        // 移除占位符
+        result = result.replaceAll("[（(]待补充[）)]|\\?\\?\\?", "").trim();
+
+        // 移除纯括号内容
+        result = result.replaceAll("^[（(][^）)]*[）)]\\s*", "").trim();
+
+        // 过滤导航/分类文本
+        if (result.startsWith("分类:") || result.startsWith("Category:")) return "";
+
+        return result;
+    }
+
+    // ==================== 消歧义检测 ====================
+
+    private static boolean isDisambiguationPage(String html, String pageTitle) {
+        if (pageTitle.contains("消歧义")) return true;
+        Document doc = Jsoup.parse(html);
+
+        // 检查分类链接
+        Elements catLinks = doc.select("a[href*=\"Category:\"], a[href*=\"category:\"]");
+        for (Element link : catLinks) {
+            String text = link.text().trim();
+            if (text.contains("消歧义")) return true;
+        }
+
+        // 检查页面本体的消歧义模板说明，避免把“另见消歧义页”的普通条目误判为消歧义页。
+        String bodyText = doc.text();
+        String compactText = bodyText.replaceAll("\\s+", "");
+        return compactText.contains("这是一个消歧义页")
+                || compactText.contains("本页面是消歧义页")
+                || compactText.contains("本页是消歧义页")
+                || compactText.contains("此页面是消歧义页")
+                || compactText.contains("此页是消歧义页")
+                || compactText.contains("消歧义页，罗列")
+                || compactText.contains("消歧义页,罗列")
+                || compactText.contains("消歧义页，列出")
+                || compactText.contains("消歧义页,列出");
+    }
+
+    private static List<String> parseDisambiguationOptions(String html) {
+        List<String> options = new ArrayList<>();
+        Document doc = Jsoup.parse(html);
+        // 消歧义列表中，一个 li 往往会同时链接条目和作品名；这里只取每个 li 的第一个条目链接。
+        Elements items = doc.select("ul li, .mw-parser-output > ul > li");
+        for (Element item : items) {
+            Element link = item.selectFirst("a[title]");
+            if (link == null) continue;
+            String title = link.attr("title");
+            if (title.isEmpty()) continue;
+            if (title.contains("消歧义") || title.contains("Category:") || title.contains("分类:")) continue;
+            if (title.contains("页面不存在")) continue;
+            if (title.equals("编辑") || title.equals("讨论") || title.equals("帮助")) continue;
+            if (!options.contains(title)) {
+                options.add(title);
+            }
+        }
+        return options;
+    }
+
+    // ==================== wikitext 降级解析 ====================
+
+    private static boolean isDisambiguationWikitext(String wikitext, String pageTitle) {
+        if (pageTitle.contains("消歧义")) return true;
+        String lower = wikitext.toLowerCase();
+        return wikitext.contains("{{消歧义") || lower.contains("{{disambig")
+                || lower.contains("{{disambiguation")
+                || wikitext.contains("消歧义页") || wikitext.contains("消歧义页面");
+    }
+
+    private static List<String> parseDisambiguationWikitext(String wikitext) {
+        List<String> options = new ArrayList<>();
+        // 匹配 [[条目名|显示名]] 或 [[条目名]]
+        Pattern linkPattern = Pattern.compile("\\[\\[([^\\]|:#]+?)(?:\\|[^\\]]+?)?\\]\\]");
+        Matcher m = linkPattern.matcher(wikitext);
+        while (m.find()) {
+            String title = m.group(1).trim();
+            if (title.isEmpty() || title.contains("消歧义") || title.contains("Category:") || title.contains("分类:")) continue;
+            if (title.startsWith("File:") || title.startsWith("文件:") || title.startsWith("Image:")) continue;
+            if (!options.contains(title)) {
+                options.add(title);
+            }
+        }
+        return options;
+    }
+
+    private static InfoboxData parseInfoboxFromWikitext(String wikitext) {
+        Pattern templateStart = Pattern.compile("\\{\\{([^|}\\n]+)\\n");
+        Matcher m = templateStart.matcher(wikitext);
+
+        InfoboxData bestData = null;
+        int bestFieldCount = 0;
+
+        while (m.find()) {
+            String templateName = m.group(1).trim();
+
+            // 跳过导航/文档/消歧义模板
+            if (templateName.contains("/导航") || templateName.contains("/doc")
+                    || templateName.contains("导航栏") || templateName.contains("Navbox")
+                    || templateName.contains("Disambig") || templateName.contains("disambiguation")
+                    || templateName.equals("消歧义")) {
+                continue;
+            }
+
+            // 从模板名之后开始，计数括号匹配到结束
+            int start = m.end();
+            int depth = 1;
+            int pos = start;
+            while (pos < wikitext.length() - 1 && depth > 0) {
+                if (wikitext.substring(pos).startsWith("{{")) {
+                    depth++;
+                    pos += 2;
+                } else if (wikitext.substring(pos).startsWith("}}")) {
+                    depth--;
+                    if (depth == 0) break;
+                    pos += 2;
+                } else {
+                    pos++;
+                }
+            }
+
+            if (depth != 0) continue;
+
+            String paramsBlock = wikitext.substring(start, pos);
+
+            // 只接受有足够参数的模板
+            int paramCount = countParams(paramsBlock);
+            if (paramCount < 2) continue;
+
+            InfoboxData data = new InfoboxData();
+            parseTemplateParams(paramsBlock, data);
+
+            if (data.fields.size() > bestFieldCount) {
+                bestFieldCount = data.fields.size();
+                bestData = data;
+            }
+        }
+
+        // 至少需要3个有效字段才接受
+        if (bestData != null && bestData.fields.size() >= 3) {
+            return bestData;
+        }
+        return bestData;
+    }
+
+    private static int countParams(String paramsBlock) {
+        int count = 0;
+        Pattern p = Pattern.compile("^\\|\\s*([^=]+?)\\s*=", Pattern.MULTILINE);
+        Matcher m = p.matcher(paramsBlock);
+        while (m.find()) count++;
+        return count;
+    }
+
+    private static void parseTemplateParams(String paramsBlock, InfoboxData data) {
+        String[] lines = paramsBlock.split("\n");
+        String currentKey = null;
+        StringBuilder currentValue = new StringBuilder();
+
+        for (String line : lines) {
+            String trimmed = line.trim();
+
+            Pattern kvPattern = Pattern.compile("^\\|\\s*([^=]+?)\\s*=\\s*(.+)$", Pattern.DOTALL);
+            Matcher kvMatcher = kvPattern.matcher(trimmed);
+
+            if (kvMatcher.find()) {
+                saveParam(currentKey, currentValue.toString(), data);
+                currentKey = normalizeKey(kvMatcher.group(1));
+                currentValue = new StringBuilder(kvMatcher.group(2));
+            } else if (trimmed.startsWith("|")) {
+                saveParam(currentKey, currentValue.toString(), data);
+                currentKey = normalizeKey(trimmed.substring(1).trim());
+                currentValue = new StringBuilder();
+            } else {
+                if (currentValue.length() > 0) {
+                    currentValue.append("\n");
+                }
+                currentValue.append(trimmed);
+            }
+        }
+        saveParam(currentKey, currentValue.toString(), data);
+    }
+
+    private static String normalizeKey(String rawKey) {
+        return rawKey.replaceAll("<[^>]+>", "").trim();
+    }
+
+    private static void saveParam(String key, String rawValue, InfoboxData data) {
+        if (key == null || key.isEmpty()) return;
+
+        // 图片参数
+        if (key.equals("image") || key.equals("图片") || key.equals("主图") || key.equals("图")
+                || key.equals("images") || key.equals("image-main") || key.equals("main-image")) {
+            String filename = cleanWikitextValue(rawValue).trim();
+            if (!filename.isEmpty() && !filename.equals("{{PAGENAME}}")) {
+                String url = buildImageUrl(filename);
+                if (data.imageUrl == null) {
+                    data.imageUrl = url;
+                }
+                System.out.println("[MoeGirl] wikitext图片: " + url);
+            }
+            return;
+        }
+
+        // 跳过样式/元数据字段
+        if (key.matches("(?i)^_|color|bgcolor|bg-color|tab|tabs|toggle|image-url|image_url|image-cap|图片说明|标题|titlestyle|headstyle|bodystyle|style|class")) {
+            return;
+        }
+
+        String cleanValue = cleanWikitextValue(rawValue);
+        if (!cleanValue.isEmpty() && cleanValue.length() > 1) {
+            data.fields.put(key, cleanValue);
+            data.cardRows.add(InfoboxRow.field(key, cleanValue, false));
+        }
+    }
+
+    private static String cleanWikitextValue(String value) {
+        if (value == null || value.isEmpty()) return "";
+
+        String result = value;
+        result = result.replaceAll("<[^>]+>", "");
+        result = removeNestedTemplates(result);
+        result = result.replaceAll("\\[\\[(?:[^|\\]]*\\|)?([^\\]]*?)\\]\\]", "$1");
+        result = result.replaceAll("'''([^']*?)'''", "$1");
+        result = result.replaceAll("''([^']*?)''", "$1");
+        result = result.replaceAll("(?s)<ref[^>]*>.*?</ref>", "");
+        result = result.replaceAll("<ref[^>]*/>", "");
+        result = result.replaceAll("\\[https?://[^\\s]+\\s+([^\\]]+)\\]", "$1");
+        result = result.replaceAll("\\[https?://[^\\s]+\\]", "");
+        result = result.replaceAll("\\[\\d+\\]", "");
+        result = result.replaceAll("https?://[^\\s]+", "").trim();
+        result = result.replaceAll("\\s+", " ").trim();
+        result = result.replaceAll("[（(]待补充[）)]|\\?\\?\\?", "").trim();
+
+        return result;
+    }
+
+    private static String removeNestedTemplates(String text) {
+        while (text.contains("{{")) {
+            int start = text.lastIndexOf("{{");
+            int end = findMatchingClose(text, start + 2);
+            if (end < 0) break;
+            text = text.substring(0, start) + text.substring(end + 2);
+        }
+        return text;
+    }
+
+    private static int findMatchingClose(String text, int start) {
+        int depth = 1;
+        int i = start;
+        while (i < text.length() - 1 && depth > 0) {
+            if (text.substring(i).startsWith("{{")) {
+                depth++;
+                i += 2;
+            } else if (text.substring(i).startsWith("}}")) {
+                depth--;
+                if (depth == 0) return i;
+                i += 2;
+            } else {
+                i++;
+            }
+        }
+        return -1;
+    }
+
+    private static String buildImageUrl(String filename) {
+        String encoded = filename.replace(' ', '_');
+        try {
+            encoded = URLEncoder.encode(encoded, StandardCharsets.UTF_8.name())
+                    .replace("+", "%20");
+        } catch (Exception ignored) {
+        }
+        return IMAGE_BASE + encoded;
+    }
+
+    // ==================== wikitext 获取（revisions API） ====================
+
+    private static String fetchViaRevisions(String pageTitle) {
+        String result = fetchRevisionsInternal(pageTitle);
+        if (result == null) {
+            sleepMs(1000);
+            result = fetchRevisionsInternal(pageTitle);
+        }
+        return result;
+    }
+
+    private static String fetchRevisionsInternal(String pageTitle) {
+        try {
+            String apiUrl = API_URL + "?action=query&prop=revisions&rvprop=content"
+                    + "&titles=" + URLEncoder.encode(pageTitle, StandardCharsets.UTF_8)
+                    + "&format=json";
+
+            try (CloseableHttpClient client = HttpClientPool.createClient()) {
+                HttpGet httpGet = new HttpGet(apiUrl);
+                httpGet.setHeader("User-Agent", HttpClientPool.getRandomUserAgent());
+
+                try (CloseableHttpResponse response = client.execute(httpGet)) {
+                    int status = response.getStatusLine().getStatusCode();
+                    if (status != 200) {
+                        System.err.println("[MoeGirl] Revisions API HTTP " + status);
+                        return null;
+                    }
+
+                    String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+                    if (body.startsWith("<") || body.contains("<html")) {
+                        System.err.println("[MoeGirl] Revisions API 返回HTML，被拦截");
+                        return null;
+                    }
+
+                    JSONObject json = JSONObject.parseObject(body);
+                    JSONObject pages = json.getJSONObject("query").getJSONObject("pages");
+                    if (pages == null || pages.isEmpty()) return null;
+
+                    String pageId = pages.keySet().iterator().next();
+                    JSONObject page = pages.getJSONObject(pageId);
+                    JSONArray revisions = page.getJSONArray("revisions");
+                    if (revisions == null || revisions.isEmpty()) return null;
+
+                    String content = revisions.getJSONObject(0).getString("*");
+                    if (content == null || content.isEmpty()) return null;
+
+                    System.out.println("[MoeGirl] wikitext获取成功 (revisions), 长度: " + content.length());
+                    return content;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[MoeGirl] Revisions API 异常: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // ==================== 图片 URL 获取 ====================
+
+    private static String fetchImageUrlFromApi(String pageTitle) {
+        // 先尝试官方 API（可能返回 storage.moegirl.org.cn 域名）
+        String source = fetchPageimages(FALLBACK_API, pageTitle);
+        // 官方 API 可能对 pageimages 返回 action-notallowed，降级用镜像 API
+        if (source == null) {
+            source = fetchPageimages(API_URL, pageTitle);
+        }
+        return source;
+    }
+
+    private static String fetchPageimages(String baseUrl, String pageTitle) {
+        try {
+            String apiUrl = baseUrl + "?action=query&prop=pageimages"
+                    + "&titles=" + URLEncoder.encode(pageTitle, StandardCharsets.UTF_8)
+                    + "&pithumbsize=800&format=json";
+
+            try (CloseableHttpClient client = HttpClientPool.createClient()) {
+                HttpGet httpGet = new HttpGet(apiUrl);
+                httpGet.setHeader("User-Agent", HttpClientPool.getRandomUserAgent());
+
+                try (CloseableHttpResponse response = client.execute(httpGet)) {
+                    if (response.getStatusLine().getStatusCode() != 200) return null;
+                    String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
+                    if (body.startsWith("<")) return null;
+
+                    JSONObject json = JSONObject.parseObject(body);
+                    // 检查是否有错误（如 action-notallowed）
+                    if (json.containsKey("error")) return null;
+
+                    JSONObject query = json.getJSONObject("query");
+                    if (query == null) return null;
+                    JSONObject pages = query.getJSONObject("pages");
+                    if (pages == null || pages.isEmpty()) return null;
+
+                    String pageId = pages.keySet().iterator().next();
+                    JSONObject page = pages.getJSONObject(pageId);
+                    JSONObject thumbnail = page.getJSONObject("thumbnail");
+                    if (thumbnail == null) return null;
+
+                    String source = thumbnail.getString("source");
+                    if (source == null || source.isEmpty()) return null;
+
+                    // 去除水印参数，获取原图 URL
+                    int exclaimIdx = source.indexOf("!/");
+                    if (exclaimIdx > 0) {
+                        source = source.substring(0, exclaimIdx);
+                    }
+
+                    System.out.println("[MoeGirl] pageimages API (" + baseUrl + ") 获取到图片: " + source);
+                    return source;
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("[MoeGirl] pageimages API 异常 (" + baseUrl + "): " + e.getMessage());
+            return null;
+        }
+    }
+
+    // ==================== 图片下载 ====================
+
+    private static String downloadImage(String imageUrl, String pageTitle) {
+        String path = downloadImageInternal(imageUrl, pageTitle, true);
+        if (path == null) {
+            path = downloadImageInternal(imageUrl, pageTitle, false);
+        }
+        return path;
+    }
+
+    private static String downloadImageInternal(String imageUrl, String pageTitle, boolean withReferer) {
+        try {
+            String tempDir = System.getProperty("java.io.tmpdir");
+            String ext = ".jpg";
+            int dotIdx = imageUrl.lastIndexOf('.');
+            if (dotIdx > 0) {
+                String suffix = imageUrl.substring(dotIdx);
+                int queryIdx = suffix.indexOf('?');
+                if (queryIdx > 0) suffix = suffix.substring(0, queryIdx);
+                if (suffix.length() <= 5) ext = suffix;
+            }
+
+            String fileName = "moegirl_" + safePositiveHash(pageTitle + "\n" + imageUrl) + ext;
+            String filePath = tempDir + File.separator + fileName;
+
+            File existing = new File(filePath);
+            if (existing.exists()) {
+                System.out.println("[MoeGirl] 图片缓存命中: " + filePath);
+                return filePath;
+            }
+
+            try (CloseableHttpClient client = HttpClientPool.createClient()) {
+                HttpGet httpGet = new HttpGet(imageUrl);
+                httpGet.setHeader("User-Agent", HttpClientPool.getRandomUserAgent());
+                if (withReferer) {
+                    httpGet.setHeader("Referer", MOEGIRL_URL + "/");
+                }
+
+                try (CloseableHttpResponse response = client.execute(httpGet)) {
+                    int status = response.getStatusLine().getStatusCode();
+                    if (status != 200) {
+                        System.err.println("[MoeGirl] 图片下载 HTTP " + status + " (Referer=" + withReferer + ")");
+                        return null;
+                    }
+
+                    try (InputStream is = response.getEntity().getContent();
+                         FileOutputStream fos = new FileOutputStream(filePath)) {
+                        byte[] buf = new byte[8192];
+                        int len;
+                        while ((len = is.read(buf)) != -1) {
+                            fos.write(buf, 0, len);
+                        }
+                    }
+                }
+            }
+
+            System.out.println("[MoeGirl] 图片已下载: " + filePath);
+            return filePath;
+        } catch (Exception e) {
+            System.err.println("[MoeGirl] 图片下载失败: " + e.getMessage());
+            return null;
+        }
+    }
+
+    // ==================== 工具 ====================
+
+    private static int safePositiveHash(String value) {
+        return (value == null ? 0 : value.hashCode()) & 0x7fffffff;
+    }
+
+    private static void sleepMs(long ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException ignored) {}
     }
 }

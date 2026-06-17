@@ -2,6 +2,7 @@ package com.bot.utils;
 
 import com.bot.utils.crawler.BangumiCrawler;
 import com.bot.utils.crawler.MoeGirlCrawler;
+import com.bot.utils.crawler.MoeGirlCrawler.InfoboxData;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -58,13 +59,20 @@ public class CrawlerTest {
         long startTime = System.currentTimeMillis();
         
         String characterName = "初音"; // 测试角色名
-        String result = MoeGirlCrawler.getInfo(characterName);
-        
+        InfoboxData data = MoeGirlCrawler.getInfo(characterName);
+
         long endTime = System.currentTimeMillis();
         long duration = endTime - startTime;
-        
+
         System.out.println("\n结果：");
-        System.out.println(result);
+        if (data != null) {
+            System.out.println("标题: " + data.pageTitle);
+            System.out.println("图片: " + data.imageUrl);
+            System.out.println("字段数: " + data.fields.size());
+            data.fields.forEach((k, v) -> System.out.println(k + ": " + v));
+        } else {
+            System.out.println("未找到结果");
+        }
         System.out.println("\n耗时：" + duration + " ms");
         System.out.println("=====================================\n");
     }
@@ -88,14 +96,17 @@ public class CrawlerTest {
             System.out.println("\n--- 测试: " + characterName + " ---");
             long startTime = System.currentTimeMillis();
             
-            String result = MoeGirlCrawler.getInfo(characterName);
-            
+            InfoboxData data = MoeGirlCrawler.getInfo(characterName);
+
             long endTime = System.currentTimeMillis();
             long duration = endTime - startTime;
-            
+
             System.out.println("耗时：" + duration + " ms");
-            System.out.println("结果摘要：" + 
-                (result.length() > 150 ? result.substring(0, 150) + "..." : result));
+            if (data != null) {
+                System.out.println("标题：" + data.pageTitle + ", 字段数：" + data.fields.size());
+            } else {
+                System.out.println("结果：未找到");
+            }
         }
         
         System.out.println("\n=====================================\n");
@@ -119,11 +130,15 @@ public class CrawlerTest {
             System.out.println("\n━━━━━━ " + term + " ━━━━━━");
             long startTime = System.currentTimeMillis();
             
-            String result = MoeGirlCrawler.getInfo(term);
-            
+            InfoboxData data = MoeGirlCrawler.getInfo(term);
+
             long endTime = System.currentTimeMillis();
-            
-            System.out.println(result);
+
+            if (data != null) {
+                System.out.println("标题: " + data.pageTitle + ", 字段数: " + data.fields.size());
+            } else {
+                System.out.println("未找到结果");
+            }
             System.out.println("\n耗时：" + (endTime - startTime) + " ms");
         }
         
@@ -171,15 +186,15 @@ public class CrawlerTest {
         
         // 使用一个可能不存在的角色名来测试重试逻辑
         String nonExistentCharacter = "这是一个完全不存在的角色名12345ABCDE";
-            String result = MoeGirlCrawler.getInfo(nonExistentCharacter);
-        
+            InfoboxData data = MoeGirlCrawler.getInfo(nonExistentCharacter);
+
         long endTime = System.currentTimeMillis();
         long duration = endTime - startTime;
-        
+
         System.out.println("\n结果：");
-        System.out.println(result);
+        System.out.println(data == null ? "未找到（预期行为）" : "找到了: " + data.pageTitle);
         System.out.println("\n耗时：" + duration + " ms");
-        System.out.println("注意：如果看到重试日志，说明重试机制正常工作");
+        System.out.println("注意：未找到即为正常，说明搜索过滤机制正常");
         System.out.println("=====================================\n");
     }
 

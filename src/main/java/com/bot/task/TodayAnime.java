@@ -18,7 +18,7 @@ public class TodayAnime {
     @Resource
     private BotContainer botContainer;
 
-    @Scheduled(cron = "0 0 0 * * *")
+//    @Scheduled(cron = "0 0 0 * * *")
     public void updateTodayAnime(){
         // 机器人账号
         long botId = 2419274814L;

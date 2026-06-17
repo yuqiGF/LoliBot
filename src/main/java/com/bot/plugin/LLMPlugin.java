@@ -68,8 +68,10 @@ public class LLMPlugin extends BotPlugin {
                     res = user.getNickname() + "你好呀";
                 } else if (favorability <= 80) {
                     res = user.getNickname() + " Ciallo～(∠・ω< )⌒★";
-                } else {
+                } else if (favorability <= 100) {
                     res = user.getNickname() + "快 过来贴贴喵！";
+                }else {
+                    res = user.getNickname() + ":emm我不知道";
                 }
             }
         } else {
@@ -121,7 +123,7 @@ public class LLMPlugin extends BotPlugin {
      * ⭐自动概率回复
      */
     @GroupMessageHandler
-    @MessageHandlerFilter(groups = {GroupNumber.AISI, GroupNumber.HUANYAN, GroupNumber.QIQI})  //在指定群组监听
+    @MessageHandlerFilter(groups = {GroupNumber.QIQI})  //在指定群组监听
     public void autoTalk(Bot bot, GroupMessageEvent event) {
         Long userId = event.getUserId();  //用户id
 
@@ -174,10 +176,10 @@ public class LLMPlugin extends BotPlugin {
         userMap.computeIfAbsent(userId, id -> {
             //⭐特殊角色
             if (id == QQNumber.Bird || id == QQNumber.MASTER) {
-                return new User(id, id == QQNumber.Bird ? "鸟鸟" : "宇崎崎", 101, 4);
+                return new User(id, id == QQNumber.Bird ? "鸟鸟" : "宇崎崎", 101, 20);
             }
-            if(id == QQNumber.BadGay){
-                return new User(id , "?" , -1 , 2);
+            if(id == QQNumber.BadGay || id == QQNumber.QiQi){
+                return new User(id , event.getSender().getNickname() , -1 , 2);
             }
 
             //⭐⭐第一印象

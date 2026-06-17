@@ -1,0 +1,189 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] ----------------------< com.aliyun.oss:loli_bot >-----------------------
+[INFO] Building loli_bot 0.0.1-SNAPSHOT
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ loli_bot ---
+[INFO] Copying 3 resources from src\main\resources to target\classes
+[INFO] Copying 7 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.13.0:compile (default-compile) @ loli_bot ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ loli_bot ---
+[INFO] skip non existing resourceDirectory D:\Codes\LoliBot\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.13.0:testCompile (default-testCompile) @ loli_bot ---
+[INFO] Nothing to compile - all classes are up to date.
+[INFO] 
+[INFO] --- surefire:3.5.3:test (default-test) @ loli_bot ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+[INFO] Running com.bot.utils.CrawlerTest
+========== 测试智能搜索（相似度匹配）==========
+
+--- 测试: 初音未来 ---
+[MoeGirl] 查询: 初音未来
+[MoeGirl] 搜索候选: 初音未来 (score=1.00)
+[MoeGirl] 搜索候选: 初音未来的消失 (score=0.51)
+[MoeGirl] 搜索候选: 初音未来：梦幻歌姬 (score=0.40)
+[MoeGirl] 搜索候选: 初音未来(蔚蓝档案) (score=0.36)
+[MoeGirl] 搜索候选: 初音未来的分裂→破坏 (score=0.36)
+[MoeGirl] 搜索候选: 初音未来(世界计划) (score=0.36)
+[MoeGirl] 搜索候选: 初音未来(偶像大师) (score=0.36)
+[MoeGirl] 搜索候选: 初音未来 未来计划2 (score=0.36)
+[MoeGirl] 搜索候选: 初音未来 -歌姬计划- (score=0.33)
+[MoeGirl] 搜索候选: 初音未来的消失 小说版 (score=0.33)
+[MoeGirl] 搜索候选: 初音未来 -歌姬计划- 系列 (score=0.26)
+[MoeGirl] 搜索候选: 初音未来与未来之星 未来计划 (score=0.26)
+[MoeGirl] 搜索候选: 初音未来 -歌姬计划- Arcade (score=0.20)
+[MoeGirl] 搜索候选: 初音未来(蔚蓝档案)/MomoTalk (score=0.19)
+[MoeGirl] 搜索候选: 初音未来 -歌姬计划- MEGA39's (score=0.18)
+[MoeGirl] 尝试: 初音未来
+[MoeGirl] HTML获取成功 (parse), 长度: 449164
+[MoeGirl] 匹配到 infobox: div.moe-infobox.infotemplatebox
+[MoeGirl] 从HTML提取图片: https://box.moegirl.icu/media/thumb/MikuNewType_main.png/280px-MikuNewType_main.png
+[MoeGirl] pageimages API (https://zh.moegirl.org.cn/api.php) 获取到图片: https://storage.moegirl.org.cn/moegirl/commons/f/f7/MikuV6_main.jpeg
+[MoeGirl] 图片缓存命中: C:\Users\Lenovo\AppData\Local\Temp\\moegirl_664463729.jpeg
+[MoeGirl] 解析完成, 字段数: 16, imageUrl: https://storage.moegirl.org.cn/moegirl/commons/f/f7/MikuV6_main.jpeg, imagePath: C:\Users\Lenovo\AppData\Local\Temp\\moegirl_664463729.jpeg, 消歧义: false
+耗时：2691 ms
+标题：初音未来, 字段数：16
+
+--- 测试: 初音 ---
+[MoeGirl] 查询: 初音
+[MoeGirl] 搜索候选: 初音 (score=1.00)
+[MoeGirl] 搜索候选: 初音岛 (score=0.60)
+[MoeGirl] 搜索候选: 初音速 (score=0.60)
+[MoeGirl] 搜索候选: 初音未来 (score=0.45)
+[MoeGirl] 搜索候选: 初音未来的消失 (score=0.26)
+[MoeGirl] 搜索候选: 初音未来：梦幻歌姬 (score=0.20)
+[MoeGirl] 搜索候选: 初音未来(蔚蓝档案) (score=0.18)
+[MoeGirl] 搜索候选: 初音未来的分裂→破坏 (score=0.18)
+[MoeGirl] 搜索候选: 初音未来(世界计划) (score=0.18)
+[MoeGirl] 搜索候选: 初音未来 -歌姬计划- 系列 (score=0.13)
+[MoeGirl] 搜索候选: 初音未来与未来之星 未来计划 (score=0.13)
+[MoeGirl] 搜索候选: 初音诞生祭·第1至100期冠军回顾 (score=0.11)
+[MoeGirl] 搜索候选: 初音未来 -歌姬计划- Arcade (score=0.10)
+[MoeGirl] 搜索候选: 初音未来(蔚蓝档案)/MomoTalk (score=0.09)
+[MoeGirl] 搜索候选: 初音未来 -歌姬计划- MEGA39's (score=0.09)
+[MoeGirl] 尝试: 初音
+[MoeGirl] HTML获取成功 (parse), 长度: 15224
+[MoeGirl] HTML中未找到 infobox
+[MoeGirl] wikitext获取成功 (revisions), 长度: 1794
+[MoeGirl] wikitext获取成功 (revisions), 长度: 1794
+[MoeGirl] HTML获取成功 (parse), 长度: 15224
+[MoeGirl] 尝试: 初音岛
+[MoeGirl] HTML获取成功 (parse), 长度: 190065
+[MoeGirl] 匹配到 infobox: table.infobox
+[MoeGirl] 从HTML提取图片: https://box.moegirl.icu/media/thumb/Ac986be0f232eb7e17601773dae872351340232506_full.png/280px-Ac986be0f232eb7e17601773dae872351340232506_full.png
+[MoeGirl] pageimages API (https://zh.moegirl.org.cn/api.php) 获取到图片: https://storage.moegirl.org.cn/moegirl/commons/2/2f/Ac986be0f232eb7e17601773dae872351340232506_full.png
+[MoeGirl] 图片缓存命中: C:\Users\Lenovo\AppData\Local\Temp\\moegirl_21430757.png
+[MoeGirl] 解析完成, 字段数: 0, imageUrl: https://storage.moegirl.org.cn/moegirl/commons/2/2f/Ac986be0f232eb7e17601773dae872351340232506_full.png, imagePath: C:\Users\Lenovo\AppData\Local\Temp\\moegirl_21430757.png, 消歧义: false
+耗时：2876 ms
+标题：初音岛, 字段数：0
+
+--- 测试: miku ---
+[MoeGirl] 查询: miku
+[MoeGirl] 搜索候选: Miku (score=1.00)
+[MoeGirl] 搜索候选: Mikuture (score=0.45)
+[MoeGirl] 搜索候选: MikuMikuDance (score=0.28)
+[MoeGirl] 搜索候选: MIKU EXPO 2014 (score=0.26)
+[MoeGirl] 搜索候选: MIKU EXPO 2016 (score=0.26)
+[MoeGirl] 搜索候选: Miku酱的大葱大葱大葱大葱幻想曲 (score=0.21)
+[MoeGirl] 搜索候选: Miku(Anamanaguchi) (score=0.20)
+[MoeGirl] 搜索候选: Miku Symphony 2021 (score=0.20)
+[MoeGirl] 搜索候选: Miku Symphony 2022 (score=0.20)
+[MoeGirl] 搜索候选: Miku Symphony 2020 (score=0.20)
+[MoeGirl] 搜索候选: Miku Symphony 2019 (score=0.20)
+[MoeGirl] 搜索候选: Miku Symphony 2016 (score=0.20)
+[MoeGirl] 搜索候选: Miku Symphony 2017 (score=0.20)
+[MoeGirl] 搜索候选: Miku Symphony 2018-2019 (score=0.16)
+[MoeGirl] 搜索候选: MIKU EXPO 2017 in Malaysia (score=0.14)
+[MoeGirl] 尝试: Miku
+[MoeGirl] HTML获取成功 (parse), 长度: 8726
+[MoeGirl] HTML中未找到 infobox
+[MoeGirl] wikitext获取成功 (revisions), 长度: 1138
+[MoeGirl] wikitext获取成功 (revisions), 长度: 1138
+[MoeGirl] HTML获取成功 (parse), 长度: 8726
+[MoeGirl] 尝试: Mikuture
+[MoeGirl] HTML获取成功 (parse), 长度: 41698
+[MoeGirl] 匹配到 infobox: [class*=infobox]
+[MoeGirl] 从HTML提取图片: https://box.moegirl.icu/media/%E5%A4%A7%E8%90%8C%E5%AD%97.svg
+[MoeGirl] pageimages API (https://zh.moegirl.org.cn/api.php) 获取到图片: https://storage.moegirl.org.cn/moegirl/commons/b/b1/Bm3YW9CIAAQU1X.jpg
+[MoeGirl] 图片缓存命中: C:\Users\Lenovo\AppData\Local\Temp\\moegirl_1369008742.jpg
+[MoeGirl] 解析完成, 字段数: 0, imageUrl: https://storage.moegirl.org.cn/moegirl/commons/b/b1/Bm3YW9CIAAQU1X.jpg, imagePath: C:\Users\Lenovo\AppData\Local\Temp\\moegirl_1369008742.jpg, 消歧义: false
+耗时：2679 ms
+标题：Mikuture, 字段数：0
+
+--- 测试: 雷姆 ---
+[MoeGirl] 查询: 雷姆
+[MoeGirl] 搜索候选: 雷姆 (score=1.00)
+[MoeGirl] 搜索候选: 雷姆必拓 (score=0.45)
+[MoeGirl] 搜索候选: 雷姆的魔法 (score=0.36)
+[MoeGirl] 搜索候选: 雷姆(公主连结) (score=0.23)
+[MoeGirl] 搜索候选: 雷姆尔罗斯的魔女(漫画) (score=0.15)
+[MoeGirl] 搜索候选: 雷姆(Re:从零开始的异世界生活) (score=0.11)
+[MoeGirl] 尝试: 雷姆
+[MoeGirl] HTML获取成功 (parse), 长度: 7484
+[MoeGirl] HTML中未找到 infobox
+[MoeGirl] wikitext获取成功 (revisions), 长度: 784
+[MoeGirl] wikitext获取成功 (revisions), 长度: 784
+[MoeGirl] HTML获取成功 (parse), 长度: 7484
+[MoeGirl] 尝试: 雷姆必拓
+[MoeGirl] HTML获取成功 (parse), 长度: 336562
+[MoeGirl] 匹配到 infobox: div.infotemplatebox
+[MoeGirl] 从HTML提取图片: https://box.moegirl.icu/media/thumb/Aklogo_%E9%9B%B7%E5%A7%86%E5%BF%85%E6%8B%93_%E9%BB%91.png/280px-Aklogo_%E9%9B%B7%E5%A7%86%E5%BF%85%E6%8B%93_%E9%BB%91.png
+[MoeGirl] pageimages API (https://zh.moegirl.org.cn/api.php) 获取到图片: https://storage.moegirl.org.cn/moegirl/commons/a/af/Aklogo_%E9%9B%B7%E5%A7%86%E5%BF%85%E6%8B%93_%E9%BB%91.png
+[MoeGirl] 图片缓存命中: C:\Users\Lenovo\AppData\Local\Temp\\moegirl_1174203805.png
+[MoeGirl] 解析完成, 字段数: 3, imageUrl: https://storage.moegirl.org.cn/moegirl/commons/a/af/Aklogo_%E9%9B%B7%E5%A7%86%E5%BF%85%E6%8B%93_%E9%BB%91.png, imagePath: C:\Users\Lenovo\AppData\Local\Temp\\moegirl_1174203805.png, 消歧义: false
+耗时：2778 ms
+标题：雷姆必拓, 字段数：3
+
+--- 测试: 艾米莉亚 ---
+[MoeGirl] 查询: 艾米莉亚
+[MoeGirl] 搜索候选: 艾米莉亚 (score=1.00)
+[MoeGirl] 搜索候选: 艾米莉亚·汉密特 (score=0.45)
+[MoeGirl] 搜索候选: 艾米莉亚(高捷少女) (score=0.36)
+[MoeGirl] 搜索候选: 艾米莉亚(老爹餐厅系列) (score=0.30)
+[MoeGirl] 搜索候选: 艾米莉亚(宝石幻想光芒重现) (score=0.26)
+[MoeGirl] 搜索候选: 艾米莉亚(Re:从零开始的异世界生活) (score=0.19)
+[MoeGirl] 尝试: 艾米莉亚
+[MoeGirl] HTML获取成功 (parse), 长度: 6552
+[MoeGirl] HTML中未找到 infobox
+[MoeGirl] wikitext获取成功 (revisions), 长度: 681
+[MoeGirl] wikitext获取成功 (revisions), 长度: 681
+[MoeGirl] HTML获取成功 (parse), 长度: 6552
+[MoeGirl] 尝试: 艾米莉亚·汉密特
+[MoeGirl] HTML获取成功 (parse), 长度: 1060
+[MoeGirl] HTML中未找到 infobox
+[MoeGirl] wikitext获取成功 (revisions), 长度: 17
+[MoeGirl] wikitext获取成功 (revisions), 长度: 17
+[MoeGirl] 重定向: 艾米莉亚·汉密特 → 艾米尔·克劳福德
+[MoeGirl] HTML获取成功 (parse), 长度: 17730
+[MoeGirl] 匹配到 infobox: div.moe-infobox.infotemplatebox
+[MoeGirl] 从HTML提取图片: https://box.moegirl.icu/media/B994475bd589f01674a71f4bcdjchbdjnac837.jpg
+[MoeGirl] pageimages API (https://zh.moegirl.org.cn/api.php) 获取到图片: https://storage.moegirl.org.cn/moegirl/commons/5/58/B994475bd589f01674a71f4bcdjchbdjnac837.jpg
+[MoeGirl] 图片缓存命中: C:\Users\Lenovo\AppData\Local\Temp\\moegirl_302251112.jpg
+[MoeGirl] 解析完成, 字段数: 10, imageUrl: https://storage.moegirl.org.cn/moegirl/commons/5/58/B994475bd589f01674a71f4bcdjchbdjnac837.jpg, imagePath: C:\Users\Lenovo\AppData\Local\Temp\\moegirl_302251112.jpg, 消歧义: false
+耗时：3567 ms
+标题：艾米尔·克劳福德, 字段数：10
+
+=====================================
+
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 14.64 s -- in com.bot.utils.CrawlerTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0
+[INFO] 
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  19.501 s
+[INFO] Finished at: 2026-05-19T03:02:41+08:00
+[INFO] ------------------------------------------------------------------------
