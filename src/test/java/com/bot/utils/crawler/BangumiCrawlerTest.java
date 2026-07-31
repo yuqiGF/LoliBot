@@ -1,7 +1,9 @@
 package com.bot.utils.crawler;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
+@EnabledIfEnvironmentVariable(named = "RUN_LEGACY_CRAWLER_TESTS", matches = "true")
 class BangumiCrawlerTest {
 
     @Test

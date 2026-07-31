@@ -32,7 +32,7 @@ public class DashScopeConfig {
     public DashScopeService dashScopeService() {
         return AiServices.builder(DashScopeService.class)
                 .chatModel(qwenChatModel)
-                .chatMemoryProvider(memoryId -> MessageWindowChatMemory.withMaxMessages(20))  //记忆
+                .chatMemoryProvider(memoryId -> MessageWindowChatMemory.withMaxMessages(40))  //记忆
                 .contentRetriever(contentRetriever)  //RAG
                 .streamingChatModel(qwenStreamingChatModel)  //流式模型
                 .inputGuardrails(  //护轨

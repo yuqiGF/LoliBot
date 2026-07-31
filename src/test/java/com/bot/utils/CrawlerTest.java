@@ -4,11 +4,13 @@ import com.bot.utils.crawler.BangumiCrawler;
 import com.bot.utils.crawler.MoeGirlCrawler;
 import com.bot.utils.crawler.MoeGirlCrawler.InfoboxData;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 /**
  * 爬虫测试类
  * 用于验证爬虫优化效果
  */
+@EnabledIfEnvironmentVariable(named = "RUN_LEGACY_CRAWLER_TESTS", matches = "true")
 public class CrawlerTest {
 
     /**

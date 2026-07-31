@@ -3,10 +3,12 @@ package com.bot.utils;
 import com.bot.utils.crawler.MoeGirlCrawler;
 import com.bot.utils.crawler.MoeGirlCrawler.InfoboxData;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 
 /**
  * 萌娘百科爬虫修复测试
  */
+@EnabledIfEnvironmentVariable(named = "RUN_LEGACY_CRAWLER_TESTS", matches = "true")
 public class MoeGirlFixTest {
 
     @Test

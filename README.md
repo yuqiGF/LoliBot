@@ -1,30 +1,49 @@
 # LoliBot
 
-LoliBot 是一个基于 Spring Boot 和 Mikuac Shiro 的 QQ 机器人项目，当前主要包含 AI 聊天、DeepSeek 临时问答、萌娘百科查询、视频生成、扫雷小游戏、WakaTime 编程统计等功能。
+LoliBot 是一个基于 Spring Boot、Mikuac Shiro 与 LangChain4j 的 QQ 群聊机器人。它以“琪琪”为聊天人格，提供带独立群上下文的 AI 聊天、群语录、明日方舟 PRTS 查询、动漫资料、百度百科、WakaTime 统计和扫雷等功能。信息量较大的结果会通过 Typst 排版为图片。
 
-## 当前状态
+## 功能概览
 
-- AI 聊天：使用 LangChain4j + DashScope，支持群聊 @ 回复、私聊回复、自动接话和好感度状态。
-- DeepSeek 问答：群内使用 `ds 问题` 触发，API Key 从配置注入。
-- 萌娘百科：使用爬虫获取条目信息，并可通过 Typst 渲染图片卡片。
-- 视频生成：@ 机器人并带“生成视频 / 视频生成 / video”等关键词，同时附带图片，调用通义万相图生视频。
-- 扫雷小游戏：管理员使用 `boom on/off` 控制开关，群内使用 `boom` 开局。
-- WakaTime：使用 `waka` / `编程` 查询今日编程时间，使用 `waka week` / `编程周报` 查询近 7 天统计。
-- 今日新番：该功能依赖 Bangumi；当前因网络环境可能不可用，本轮暂不维护。
+| 功能 | 指令示例 | 说明 |
+| --- | --- | --- |
+| 琪琪手册 | `琪琪手册` | 返回双栏图片版总功能说明 |
+| AI 聊天 | `@琪琪 你好` | 所有群均支持主动 @；指定群支持独立上下文和自然接话 |
+| 好感度 | `好感度` | 每个用户、每个群分别保存聊天档案 |
+| 群复读 | 无需指令 | 每个群独立判断，所有群可用 |
+| 群语录 | `add 啾咪` | 下一条消息保存为语录；支持文字、图片、表情包和多人同时添加 |
+| PRTS | `prts 羽毛笔` | 查询干员、敌人、道具、时装、关卡、肉鸽、公招标签等资料 |
+| 动漫资料 | `anime` | 查看最近更新；`anime 作品名` 查询详情并翻译简介、职员和角色信息 |
+| 百度百科 | `baidu 初音未来` | 返回摘要、基础字段和右侧词条代表图 |
+| WakaTime | `waka` | 查询今日统计；`waka week` 查询最近七个自然日 |
+| 萌娘百科 | `baka 琪露诺` | 查询萌娘百科词条 |
+| 扫雷 | `boom` | 管理员使用 `boom on/off` 开关；坐标翻格，`f A1` 标记 |
+
+> Bangumi“今日新番”受网络环境影响，当前不维护。DeepSeek 临时问答和闻声视频目前标记为暂不可用。
+
+## 聊天设计
+
+- 主动 @ 在所有群可用；高级自动接话仅在本地配置的群中启用。
+- 会话键由“群号 + 用户号”组成，不同用户、不同群之间不会串记忆。
+- 主人身份仅由可信的本地配置判断，不相信昵称、自称或提示词诱导。
+- 自动接话会去除重复消息和低信息刷屏；没有真实讨论来源时，不会主动复述 KFC、疯狂星期四或“V我50”等高频梗。
+- 群语录按群持久化，添加流程按“群 + 用户”隔离，因此支持多人并发操作。
 
 ## 项目结构
 
 ```text
 src/main/java/com/bot
-├── config        Spring、DashScope、RAG、跨域等配置
+├── config        Spring、DashScope 和机器人身份配置
 ├── controller    Web API 入口
-├── game          群内小游戏核心逻辑
+├── game          扫雷等游戏逻辑
 ├── guardrail     AI 输入护轨
-├── model         简单数据模型
-├── plugin        QQ 群聊/私聊插件入口
-├── service       AI 服务接口
+├── model         业务数据模型
+├── plugin        QQ 指令与消息入口
+├── service       AI、聊天档案和语录存储
 ├── task          定时任务
-└── utils         AI、爬虫、消息解析、Typst 渲染等工具
+└── utils
+    ├── ai         外部 AI 客户端
+    ├── common     消息解析与通用 Typst 渲染
+    └── crawler    PRTS、动漫、百科、WakaTime 等数据客户端
 ```
 
 更详细的维护说明见 [项目结构与维护指南](docs/项目结构与维护指南.md)。
@@ -32,21 +51,37 @@ src/main/java/com/bot
 ## 环境要求
 
 - JDK 21+
-- Maven 3.6+
-- 可用的 QQ 机器人服务，例如 NapCat
-- 可选：Typst，用于渲染扫雷棋盘和萌百信息卡
+- Maven Wrapper（仓库已包含）
+- NapCat 或其他兼容 OneBot 11 的 QQ 机器人服务
+- Typst，用于生成图片卡片和扫雷棋盘
+- 可访问所需数据源的网络环境
 
 ## 本地配置
 
-复制模板：
+复制配置模板：
 
 ```bash
 cp src/main/resources/application-local.example.yml src/main/resources/application-local.yml
 ```
 
-然后在 `application-local.yml` 中填写真实配置：
+Windows PowerShell：
+
+```powershell
+Copy-Item src/main/resources/application-local.example.yml src/main/resources/application-local.yml
+```
+
+在 `application-local.yml` 中填写本机配置：
 
 ```yaml
+bot:
+  account-id: 0
+  master-qq: 0
+  bird-qq: 0
+  bad-gay-qq: 0
+  qiqi-qq: 0
+  scheduled-group: 0
+  advanced-groups: []
+
 shiro:
   ws:
     server:
@@ -63,40 +98,70 @@ langchain4j:
       streaming-chat-model:
         api-key: 你的_DashScope_API_Key
 
-deepseek:
-  api-key: 你的_DeepSeek_API_Key
+wakatime:
+  timezone: Asia/Shanghai
+  api-key: 你的_WakaTime_API_Key
+
+typst:
+  path: typst
+  font-path: fonts
 ```
 
-`application-local.yml` 已在 `.gitignore` 中忽略，不要提交真实密钥。
+`0` 或空列表表示未配置相应身份或群。真实 QQ 号、群号、API Key 和 WebSocket 地址只应保存在 `application-local.yml` 中。
+
+## 数据持久化
+
+运行时数据默认写入工作目录的 `data/`：
+
+- `data/chat-profiles.json`：按群与用户隔离的昵称、好感度和回复率。
+- `data/quotes.json`：各群关键词与语录索引。
+- `data/quote-images/`：语录中的本地化图片和表情资源。
+
+`application-local.yml`、`data/`、构建目录和 IDE 文件均已加入 `.gitignore`，不会进入仓库。
 
 ## 构建与运行
 
+Linux / macOS：
+
 ```bash
 ./mvnw clean package
-java -jar target/loli_bot-0.0.1-SNAPSHOT.jar --spring.profiles.active=local
+java -jar target/loli_bot-0.0.1-SNAPSHOT.jar
 ```
 
-Windows 下可使用：
+Windows：
 
 ```powershell
 .\mvnw.cmd clean package
-java -jar target\loli_bot-0.0.1-SNAPSHOT.jar --spring.profiles.active=local
+java -jar target\loli_bot-0.0.1-SNAPSHOT.jar
 ```
 
-## 常用命令
+应用默认使用 `local` Profile，并通过 `optional:application-local.yml` 加载本地配置。
 
-- `@机器人 消息`：DashScope 聊天
-- `好感度`：查看当前用户好感度
-- `ds 问题`：DeepSeek 临时问答
-- `baka 词条`：萌娘百科查询
-- `boom on` / `boom off`：管理员开关扫雷
-- `boom`：开始或查看扫雷棋盘
-- `waka` / `编程`：今日编程统计
-- `waka week` / `编程周报`：近 7 天编程统计
+## 测试
+
+运行普通单元测试：
+
+```bash
+./mvnw test
+```
+
+真实外部接口测试默认关闭。准备好 WakaTime Key 和可访问外网的环境后可手动启用：
+
+```bash
+RUN_EXTERNAL_API_TESTS=true WAKATIME_API_KEY=你的_Key \
+  ./mvnw -Dtest=ExternalApiSmokeTest test
+```
+
+外部测试会实际访问动漫、百度百科、WakaTime 等数据源，并验证 Typst PNG 能成功生成。
 
 ## 开发约定
 
-- 插件入口放在 `com.bot.plugin`，只负责命令匹配、参数解析和消息发送。
-- 外部 API 调用放在 `utils.ai` 或 `utils.crawler`，不要在插件里直接拼 HTTP。
-- 多个插件共用的消息解析、Typst 渲染等逻辑放在 `utils.common`。
-- API Key、QQ 号、群号等私密或本地化配置不要提交到仓库。
+- 插件只负责指令匹配、参数解析和消息发送，数据抓取与持久化放在独立服务中。
+- 复杂返回统一使用结构化卡片和 Typst，不在插件中重复拼接整套模板。
+- 新增外部接口时应设置连接超时、响应校验和失败提示。
+- 不提交真实密钥、QQ 号、群号、聊天档案、语录图片或服务器信息。
+- 今日新番功能暂不作为构建与发布的阻塞项。
+
+## License
+
+本项目使用 [MIT License](LICENSE)。

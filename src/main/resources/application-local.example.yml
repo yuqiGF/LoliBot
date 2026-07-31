@@ -2,6 +2,16 @@
 # 使用方式：复制为 application-local.yml，然后填入自己的真实配置。
 # 注意：application-local.yml 包含密钥和私有地址，不要提交到 Git 仓库。
 
+bot:
+  # 身份和群号只在 application-local.yml 中填写，0 表示未配置。
+  account-id: 0
+  master-qq: 0
+  bird-qq: 0
+  bad-gay-qq: 0
+  qiqi-qq: 0
+  scheduled-group: 0
+  advanced-groups: []
+
 shiro:
   ws:
     server:
@@ -26,10 +36,20 @@ deepseek:
   api-key: 你的_DeepSeek_API_Key
 
 wakatime:
+  timezone: Asia/Shanghai
   api-key: 你的_WakaTime_API_Key
+
+prts:
+  # PRTS 官方站点。如果官方站点访问不稳定，可替换为可用镜像。
+  base-url: https://m.prts.wiki
 
 typst:
   # 如果 typst 已加入 PATH，保持 typst 即可；否则填写 typst.exe 的绝对路径。
   path: typst
   # 中文/Emoji 渲染异常时，填写本机字体目录；多个目录用系统路径分隔符分开。
   font-path: fonts
+
+
+# 聊天档案与群语录均保存在工作目录的 data 下。
+chat:
+  state-file: data/chat-profiles.json

@@ -12,15 +12,7 @@ public class UserGuardrail implements InputGuardrail {
 
     @Override
     public InputGuardrailResult validate(UserMessage userMessage) {
-        //获取到用户的id
-        String[] userIds = userMessage.toString().split("\\|");
-        String userId = null;
-        if (userIds.length == 2){
-            userId = userIds[1];
-        }
-        if (userId != null && userId.equals("2328441709")){
-            return InputGuardrailResult.success();
-        }
+        // 当前未启用额外用户限制，保留扩展点并采用框架默认校验。
         return InputGuardrail.super.validate(userMessage);
     }
 }

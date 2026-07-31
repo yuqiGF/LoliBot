@@ -1,5 +1,6 @@
 package com.bot.plugin;
 
+import com.bot.config.BotProperties;
 import com.bot.game.MinesweeperGame;
 import com.bot.utils.common.TypstRenderUtils;
 import com.mikuac.shiro.annotation.GroupMessageHandler;
@@ -9,6 +10,7 @@ import com.mikuac.shiro.common.utils.MsgUtils;
 import com.mikuac.shiro.core.Bot;
 import com.mikuac.shiro.core.BotPlugin;
 import com.mikuac.shiro.dto.event.message.GroupMessageEvent;
+import jakarta.annotation.Resource;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,7 +28,6 @@ public class MinesweeperPlugin extends BotPlugin {
 
     private static final Logger logger = LoggerFactory.getLogger(MinesweeperPlugin.class);
 
-    private static final long ADMIN_QQ = 2328441709L;
     private static final Duration RENDER_TIMEOUT = Duration.ofSeconds(15);
 
     private final ConcurrentHashMap<Long, MinesweeperGame> games = new ConcurrentHashMap<>();
@@ -38,13 +39,16 @@ public class MinesweeperPlugin extends BotPlugin {
     @Value("${typst.font-path:}")
     private String typstFontPath;
 
+    @Resource
+    private BotProperties botProperties;
+
     /**
      * 管理员开关扫雷功能
      */
     @GroupMessageHandler
     @MessageHandlerFilter(cmd = "^boom\\s+(on|off)$")
     public void toggleGame(Bot bot, GroupMessageEvent event, Matcher matcher) {
-        if (event.getUserId() != ADMIN_QQ) {
+        if (!botProperties.isMaster(event.getUserId())) {
             bot.sendGroupMsg(event.getGroupId(),
                     MsgUtils.builder().text("仅管理员可操作开关").build(), false);
             return;

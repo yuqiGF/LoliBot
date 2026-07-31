@@ -1,5 +1,6 @@
 package com.bot.task;
 
+import com.bot.config.BotProperties;
 import com.mikuac.shiro.common.utils.MsgUtils;
 import com.mikuac.shiro.core.Bot;
 import com.mikuac.shiro.core.BotContainer;
@@ -22,6 +23,9 @@ public class Noise {
     // 注入 Bot 容器
     @Resource
     private BotContainer botContainer;
+
+    @Resource
+    private BotProperties botProperties;
 
     // 101条夸奖语料库，随机触发
     private static final String[] COMPLIMENTS = {
@@ -49,7 +53,9 @@ public class Noise {
 //    @Scheduled(cron = "0 */30 * * * *")
     public void cake() {
         // 机器人账号
-        long botId = 2419274814L;
+        long botId = botProperties.getAccountId();
+        long targetGroup = botProperties.getScheduledGroup();
+        if (botId <= 0 || targetGroup <= 0) return;
         // 取出 Bot 对象
         Bot bot = botContainer.robots.get(botId);
 
@@ -60,12 +66,11 @@ public class Noise {
 
             // 构建消息
             String msg = MsgUtils.builder()
-//                    .at(242003347L)       // 艾特本人，可以取消这行的注释
                     .text(randomText)       // 随机取出
                     .build();
 
             // 发送群消息
-            bot.sendGroupMsg(342573438L, msg, false);
+            bot.sendGroupMsg(targetGroup, msg, false);
         }
     }
 }

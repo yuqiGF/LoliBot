@@ -1,5 +1,6 @@
 package com.bot.task;
 
+import com.bot.config.BotProperties;
 import com.bot.utils.crawler.BangumiCrawler;
 import com.mikuac.shiro.common.utils.MsgUtils;
 import com.mikuac.shiro.core.Bot;
@@ -18,10 +19,14 @@ public class TodayAnime {
     @Resource
     private BotContainer botContainer;
 
+    @Resource
+    private BotProperties botProperties;
+
 //    @Scheduled(cron = "0 0 0 * * *")
     public void updateTodayAnime(){
         // 机器人账号
-        long botId = 2419274814L;
+        long botId = botProperties.getAccountId();
+        if (botId <= 0) return;
         // 通过机器人账号取出 Bot 对象
         Bot bot = botContainer.robots.get(botId);
         if (bot == null) {

@@ -3,6 +3,16 @@
 # 1. 本文件只放非敏感默认值，API Key、机器人地址等私密配置请写入 application-local.yml。
 # 2. Spring 会自动加载 application-local.yml；该文件已在 .gitignore 中忽略。
 
+bot:
+  # 身份和群号只在 application-local.yml 中填写，0 表示未配置。
+  account-id: 0
+  master-qq: 0
+  bird-qq: 0
+  bad-gay-qq: 0
+  qiqi-qq: 0
+  scheduled-group: 0
+  advanced-groups: []
+
 server:
   port: 8082
 
@@ -27,9 +37,14 @@ shiro:
 
 # WakaTime 编程统计配置；建议在 application-local.yml 中填写。
 wakatime:
+  timezone: Asia/Shanghai
   api-key:
   # 兼容旧配置名，后续可统一迁移到 api-key。
   api_key:
+
+# PRTS Wiki 查询配置。
+prts:
+  base-url: https://m.prts.wiki
 
 # Typst 用于渲染扫雷棋盘和萌百信息卡。
 typst:
@@ -56,3 +71,8 @@ langchain4j:
       streaming-chat-model:
         model-name: qwen3-max
         api-key:
+
+
+# 聊天档案与群语录均保存在工作目录的 data 下。
+chat:
+  state-file: data/chat-profiles.json
