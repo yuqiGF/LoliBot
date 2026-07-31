@@ -29,6 +29,13 @@ class JapaneseExternalApiSmokeTest {
         assertEquals("たべる", entry.reading());
         assertTrue(entry.partsOfSpeech().stream().anyMatch(value -> value.contains("Ichidan")));
 
+        var n1Page = new JapaneseDictionaryClient().queryJlptPage("N1", 100);
+        var n5Page = new JapaneseDictionaryClient().queryJlptPage("N5", 20);
+        assertTrue(!n1Page.isEmpty() && n1Page.stream().allMatch(item -> item.levels().contains("N1")),
+                "N1 中段分页应返回带 N1 标签的词条");
+        assertTrue(!n5Page.isEmpty() && n5Page.stream().allMatch(item -> item.levels().contains("N5")),
+                "N5 中段分页应返回带 N5 标签的词条");
+
         JapaneseWordCard card = new JapaneseWordCard(
                 entry.word(), entry.reading(), "一段动词 / 他动词", "N5", entry.common(),
                 List.of("吃；食用", "以……为生"),

@@ -64,7 +64,7 @@ public class ManualPlugin extends BotPlugin {
                         new CardItem("百度百科", "baidu",
                                 "baidu 初音未来\n返回带词条主图的百科卡片", null),
                         new CardItem("日语入门学习", "moji",
-                                "moji 随机学习高频词\nmoji 食べる / moji 吃饭", null),
+                                "moji 随机学习 N1-N5 词\nmoji 食べる / moji 吃饭", null),
                         new CardItem("WakaTime", "waka",
                                 "waka 查询今日\nwaka week 查询最近七天", null),
                         new CardItem("萌娘百科", "baka",

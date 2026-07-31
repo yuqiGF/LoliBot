@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -41,6 +42,31 @@ class JapaneseLearningServiceTest {
                 """);
     }
 
+    @Test
+    void randomSelectionCanChooseEveryJlptLevelAndKeepsItsLabel() {
+        List<String> levels = List.of("N1", "N2", "N3", "N4", "N5");
+        for (int levelIndex = 0; levelIndex < levels.size(); levelIndex++) {
+            String level = levels.get(levelIndex);
+            AtomicInteger randomCalls = new AtomicInteger();
+            int selectedLevel = levelIndex;
+            JapaneseLearningService randomService = new JapaneseLearningService(
+                    dictionary,
+                    model,
+                    bound -> randomCalls.getAndIncrement() == 0 ? selectedLevel : 0
+            );
+            JapaneseDictionaryClient.DictionaryEntry entry = new JapaneseDictionaryClient.DictionaryEntry(
+                    "単語" + level, "たんご", List.of("word"), List.of("Noun"),
+                    List.of(), false, "https://jisho.org/"
+            );
+            when(dictionary.queryJlptPage(level, 1)).thenReturn(List.of(entry));
+
+            JapaneseWordCard card = randomService.randomCard(List.of());
+
+            assertNotNull(card, level);
+            assertEquals(level, card.level());
+            verify(dictionary).queryJlptPage(level, 1);
+        }
+    }
     @Test
     void buildsBeginnerCardFromDictionaryFacts() {
         when(dictionary.query("食べる")).thenReturn(taberu);

@@ -36,6 +36,21 @@ public class JapaneseDictionaryClient {
         if (keyword == null || keyword.isBlank()) return null;
         String normalized = keyword.trim();
         String url = baseUrl + "?keyword=" + URLEncoder.encode(normalized, StandardCharsets.UTF_8);
+        String json = request(url);
+        return json == null ? null : parse(normalized, json);
+    }
+
+    /** 获取指定 JLPT 等级的一页词条，供学习服务在完整分页范围内均匀抽样。 */
+    public List<DictionaryEntry> queryJlptPage(String level, int page) {
+        if (level == null || !level.matches("N[1-5]") || page < 1) return List.of();
+        String tag = "#jlpt-" + level.toLowerCase(Locale.ROOT);
+        String url = baseUrl + "?keyword=" + URLEncoder.encode(tag, StandardCharsets.UTF_8)
+                + "&page=" + page;
+        String json = request(url);
+        return json == null ? List.of() : parsePage(json);
+    }
+
+    private String request(String url) {
         try (CloseableHttpClient client = HttpClientPool.createClient()) {
             HttpGet request = new HttpGet(url);
             request.setHeader("Accept", "application/json");
@@ -43,13 +58,13 @@ public class JapaneseDictionaryClient {
             try (CloseableHttpResponse response = client.execute(request)) {
                 int status = response.getStatusLine().getStatusCode();
                 if (status < 200 || status >= 300 || response.getEntity() == null) {
-                    logger.warn("日语词典请求失败，status={}", status);
+                    logger.warn("日语词典请求失败，status={}, url={}", status, url);
                     return null;
                 }
-                return parse(normalized, EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8));
+                return EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
             }
         } catch (Exception e) {
-            logger.warn("日语词典查询异常，keyword={}, message={}", normalized, e.getMessage());
+            logger.warn("日语词典查询异常，url={}, message={}", url, e.getMessage());
             return null;
         }
     }
@@ -68,6 +83,20 @@ public class JapaneseDictionaryClient {
             if (candidate != null && (best == null || candidate.score() > best.score())) best = candidate;
         }
         return best == null ? null : best.entry();
+    }
+
+    /** 保持 Jisho 返回顺序解析整页，页内下标随后用于等概率抽词。 */
+    static List<DictionaryEntry> parsePage(String json) {
+        if (json == null || json.isBlank()) return List.of();
+        JSONObject root = JSON.parseObject(json);
+        JSONArray data = root.getJSONArray("data");
+        if (data == null || data.isEmpty()) return List.of();
+        List<DictionaryEntry> entries = new ArrayList<>();
+        for (int i = 0; i < data.size(); i++) {
+            Candidate candidate = candidate("", data.getJSONObject(i), i);
+            if (candidate != null) entries.add(candidate.entry());
+        }
+        return List.copyOf(entries);
     }
 
     private static Candidate candidate(String query, JSONObject raw, int index) {
