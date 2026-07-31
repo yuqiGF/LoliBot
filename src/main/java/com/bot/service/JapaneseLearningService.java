@@ -10,6 +10,7 @@ import com.bot.utils.crawler.JapaneseDictionaryClient;
 import com.bot.utils.crawler.JapaneseDictionaryClient.DictionaryEntry;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -57,6 +58,7 @@ public class JapaneseLearningService {
     private final IntUnaryOperator randomIndex;
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
+    @Autowired
     public JapaneseLearningService(JapaneseDictionaryClient dictionaryClient, DashScopeService dashScopeService) {
         this(dictionaryClient, dashScopeService, bound -> ThreadLocalRandom.current().nextInt(bound));
     }

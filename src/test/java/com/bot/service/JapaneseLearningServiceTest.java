@@ -4,6 +4,7 @@ import com.bot.model.JapaneseWordCard;
 import com.bot.utils.crawler.JapaneseDictionaryClient;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -42,6 +43,17 @@ class JapaneseLearningServiceTest {
                 """);
     }
 
+    @Test
+    void springCanCreateServiceWithItsProductionConstructor() {
+        try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+            context.registerBean(JapaneseDictionaryClient.class, () -> dictionary);
+            context.registerBean(DashScopeService.class, () -> model);
+            context.registerBean(JapaneseLearningService.class);
+            context.refresh();
+
+            assertNotNull(context.getBean(JapaneseLearningService.class));
+        }
+    }
     @Test
     void randomSelectionCanChooseEveryJlptLevelAndKeepsItsLabel() {
         List<String> levels = List.of("N1", "N2", "N3", "N4", "N5");
