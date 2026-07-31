@@ -43,6 +43,10 @@ prts:
   # PRTS 官方站点。如果官方站点访问不稳定，可替换为可用镜像。
   base-url: https://m.prts.wiki
 
+moji:
+  # Jisho 的公开词典查询接口，无需 API Key。
+  base-url: https://jisho.org/api/v1/search/words
+
 typst:
   # 如果 typst 已加入 PATH，保持 typst 即可；否则填写 typst.exe 的绝对路径。
   path: typst

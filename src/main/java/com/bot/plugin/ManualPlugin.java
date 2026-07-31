@@ -63,6 +63,8 @@ public class ManualPlugin extends BotPlugin {
                                 "anime 查看最近更新\nanime 葬送的芙莉莲 查询详情", null),
                         new CardItem("百度百科", "baidu",
                                 "baidu 初音未来\n返回带词条主图的百科卡片", null),
+                        new CardItem("日语入门学习", "moji",
+                                "moji 随机学习高频词\nmoji 食べる / moji 吃饭", null),
                         new CardItem("WakaTime", "waka",
                                 "waka 查询今日\nwaka week 查询最近七天", null),
                         new CardItem("萌娘百科", "baka",
@@ -71,6 +73,8 @@ public class ManualPlugin extends BotPlugin {
                                 "boom 开始 / A1 翻格\nf A1 标记", null),
                         new CardItem("群语录", "add",
                                 "add 啾咪 后发送文字或表情包\n群内出现关键词时随机回复", null),
+                        new CardItem("聊天与好感度", "@ / 好感度",
+                                "@ 琪琪 发起对话\n好感度 查看本群独立档案", null),
                         new CardItem("AI 扩展服务", "暂不可用",
                                 "DeepSeek 问答（ds）\n闻声视频生成", null)
                 ),

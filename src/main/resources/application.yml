@@ -46,6 +46,10 @@ wakatime:
 prts:
   base-url: https://m.prts.wiki
 
+# 日语词典学习卡，Jisho 词条数据来自 JMdict。
+moji:
+  base-url: https://jisho.org/api/v1/search/words
+
 # Typst 用于渲染扫雷棋盘和萌百信息卡。
 typst:
   # typst 可执行文件路径；如果已加入 PATH，保持 typst 即可。

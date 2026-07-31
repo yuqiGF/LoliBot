@@ -1,6 +1,6 @@
 # LoliBot
 
-LoliBot 是一个基于 Spring Boot、Mikuac Shiro 与 LangChain4j 的 QQ 群聊机器人。它以“琪琪”为聊天人格，提供带独立群上下文的 AI 聊天、群语录、明日方舟 PRTS 查询、动漫资料、百度百科、WakaTime 统计和扫雷等功能。信息量较大的结果会通过 Typst 排版为图片。
+LoliBot 是一个基于 Spring Boot、Mikuac Shiro 与 LangChain4j 的 QQ 群聊机器人。它以“琪琪”为聊天人格，提供带独立群上下文的 AI 聊天、群语录、明日方舟 PRTS 查询、动漫资料、百度百科、日语入门学习、WakaTime 统计和扫雷等功能。信息量较大的结果会通过 Typst 排版为图片。
 
 ## 功能概览
 
@@ -14,6 +14,7 @@ LoliBot 是一个基于 Spring Boot、Mikuac Shiro 与 LangChain4j 的 QQ 群聊
 | PRTS | `prts 羽毛笔` | 查询干员、敌人、道具、时装、关卡、肉鸽、公招标签等资料 |
 | 动漫资料 | `anime` | 查看最近更新；`anime 作品名` 查询详情并翻译简介、职员和角色信息 |
 | 百度百科 | `baidu 初音未来` | 返回摘要、基础字段和右侧词条代表图 |
+| 日语入门 | `moji 食べる` | 生成含假名、核心义、简单例句和常用变形的学习卡；`moji 吃饭` 可由中文查日语辞书形，单发 `moji` 随机学习高频词 |
 | WakaTime | `waka` | 查询今日统计；`waka week` 查询最近七个自然日 |
 | 萌娘百科 | `baka 琪露诺` | 查询萌娘百科词条 |
 | 扫雷 | `boom` | 管理员使用 `boom on/off` 开关；坐标翻格，`f A1` 标记 |
@@ -154,11 +155,14 @@ RUN_EXTERNAL_API_TESTS=true WAKATIME_API_KEY=你的_Key \
 
 外部测试会实际访问动漫、百度百科、WakaTime 等数据源，并验证 Typst PNG 能成功生成。
 
+日语词典与学习卡可单独实测：`RUN_JAPANESE_EXTERNAL_TESTS=true ./mvnw -Dtest=JapaneseExternalApiSmokeTest test`。
+
 ## 开发约定
 
 - 插件只负责指令匹配、参数解析和消息发送，数据抓取与持久化放在独立服务中。
 - 复杂返回统一使用结构化卡片和 Typst，不在插件中重复拼接整套模板。
 - 新增外部接口时应设置连接超时、响应校验和失败提示。
+- 日语词条事实来自 [Jisho](https://jisho.org/) 所使用的 [JMdict](https://www.jmdict.org/jmdict/j_jmdict.html) 数据；中文说明和例句只承担教学整理，不覆盖词典事实。
 - 不提交真实密钥、QQ 号、群号、聊天档案、语录图片或服务器信息。
 - 今日新番功能暂不作为构建与发布的阻塞项。
 
