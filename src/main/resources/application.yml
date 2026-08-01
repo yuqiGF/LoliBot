@@ -12,6 +12,9 @@ bot:
   qiqi-qq: 0
   scheduled-group: 0
   advanced-groups: []
+  ai:
+    # 翻译、词典整理等轻量任务使用低价模型；聊天仍使用下方的主模型。
+    lightweight-model-name: qwen-flash
 
 server:
   port: 8082

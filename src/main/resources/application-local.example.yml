@@ -11,6 +11,9 @@ bot:
   qiqi-qq: 0
   scheduled-group: 0
   advanced-groups: []
+  ai:
+    # 可按需替换为兼容的低价模型 ID；一般无需覆盖默认值 qwen-flash。
+    lightweight-model-name: qwen-flash
 
 shiro:
   ws:

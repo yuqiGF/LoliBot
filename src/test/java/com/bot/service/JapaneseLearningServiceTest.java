@@ -20,14 +20,14 @@ import static org.mockito.Mockito.when;
 
 class JapaneseLearningServiceTest {
     private JapaneseDictionaryClient dictionary;
-    private DashScopeService model;
+    private LightweightDashScopeService model;
     private JapaneseLearningService service;
     private JapaneseDictionaryClient.DictionaryEntry taberu;
 
     @BeforeEach
     void setUp() {
         dictionary = mock(JapaneseDictionaryClient.class);
-        model = mock(DashScopeService.class);
+        model = mock(LightweightDashScopeService.class);
         service = new JapaneseLearningService(dictionary, model);
         taberu = new JapaneseDictionaryClient.DictionaryEntry(
                 "食べる", "たべる", List.of("to eat"),
@@ -47,7 +47,7 @@ class JapaneseLearningServiceTest {
     void springCanCreateServiceWithItsProductionConstructor() {
         try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
             context.registerBean(JapaneseDictionaryClient.class, () -> dictionary);
-            context.registerBean(DashScopeService.class, () -> model);
+            context.registerBean(LightweightDashScopeService.class, () -> model);
             context.registerBean(JapaneseLearningService.class);
             context.refresh();
 

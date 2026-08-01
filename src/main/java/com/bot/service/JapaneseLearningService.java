@@ -54,22 +54,22 @@ public class JapaneseLearningService {
             "N5", 657
     );
     private final JapaneseDictionaryClient dictionaryClient;
-    private final DashScopeService dashScopeService;
+    private final LightweightDashScopeService lightweightModel;
     private final IntUnaryOperator randomIndex;
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
 
     @Autowired
-    public JapaneseLearningService(JapaneseDictionaryClient dictionaryClient, DashScopeService dashScopeService) {
-        this(dictionaryClient, dashScopeService, bound -> ThreadLocalRandom.current().nextInt(bound));
+    public JapaneseLearningService(JapaneseDictionaryClient dictionaryClient, LightweightDashScopeService lightweightModel) {
+        this(dictionaryClient, lightweightModel, bound -> ThreadLocalRandom.current().nextInt(bound));
     }
 
     JapaneseLearningService(
             JapaneseDictionaryClient dictionaryClient,
-            DashScopeService dashScopeService,
+            LightweightDashScopeService lightweightModel,
             IntUnaryOperator randomIndex
     ) {
         this.dictionaryClient = dictionaryClient;
-        this.dashScopeService = dashScopeService;
+        this.lightweightModel = lightweightModel;
         this.randomIndex = randomIndex;
     }
 
@@ -163,7 +163,7 @@ public class JapaneseLearningService {
 
     private String resolveChineseLemma(String query) {
         try {
-            String response = dashScopeService.resolveJapaneseLemma(query);
+            String response = lightweightModel.resolveJapaneseLemma(query);
             if (response == null) return "";
             int start = response.indexOf('{');
             int end = response.lastIndexOf('}');
@@ -194,7 +194,7 @@ public class JapaneseLearningService {
             payload.put("englishDefinitions", entry.englishDefinitions());
             payload.put("partsOfSpeech", entry.partsOfSpeech());
             payload.put("jlpt", entry.levels());
-            String response = dashScopeService.localizeJapaneseWord(JSON.toJSONString(payload));
+            String response = lightweightModel.localizeJapaneseWord(JSON.toJSONString(payload));
             LocalizedContent parsed = parseLocalized(response);
             if (parsed != null) return parsed;
         } catch (Exception e) {

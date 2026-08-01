@@ -1,6 +1,6 @@
 package com.bot.utils.common;
 
-import com.bot.service.DashScopeService;
+import com.bot.service.LightweightDashScopeService;
 import com.bot.utils.common.RichCardRenderer.Card;
 import com.bot.utils.common.RichCardRenderer.CardItem;
 import com.bot.utils.common.RichCardRenderer.Field;
@@ -18,7 +18,7 @@ class AnimeChineseTranslatorTest {
 
     @Test
     void translatesReaderTextButPreservesTechnicalValues() {
-        DashScopeService model = mock(DashScopeService.class);
+        LightweightDashScopeService model = mock(LightweightDashScopeService.class);
         when(model.translateAnime(anyString())).thenReturn("""
                 {
                   "title":"葬送的芙莉莲",

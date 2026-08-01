@@ -3,7 +3,7 @@ package com.bot.utils.common;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONArray;
 import com.alibaba.fastjson2.JSONObject;
-import com.bot.service.DashScopeService;
+import com.bot.service.LightweightDashScopeService;
 import com.bot.utils.common.RichCardRenderer.Card;
 import com.bot.utils.common.RichCardRenderer.CardItem;
 import com.bot.utils.common.RichCardRenderer.Field;
@@ -25,16 +25,16 @@ import java.util.List;
 public class AnimeChineseTranslator {
     private static final Logger logger = LoggerFactory.getLogger(AnimeChineseTranslator.class);
 
-    private final DashScopeService dashScopeService;
+    private final LightweightDashScopeService lightweightModel;
 
-    public AnimeChineseTranslator(DashScopeService dashScopeService) {
-        this.dashScopeService = dashScopeService;
+    public AnimeChineseTranslator(LightweightDashScopeService lightweightModel) {
+        this.lightweightModel = lightweightModel;
     }
 
     public Card translate(Card original) {
         if (original == null) return null;
         try {
-            String response = dashScopeService.translateAnime(buildPayload(original).toJSONString());
+            String response = lightweightModel.translateAnime(buildPayload(original).toJSONString());
             JSONObject translated = parseObject(response);
             if (translated == null) return original;
 
