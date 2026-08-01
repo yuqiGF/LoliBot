@@ -50,7 +50,7 @@ public class ManualPlugin extends BotPlugin {
                 null, "E55371",
                 List.of(
                         new Field("聊天", "在群聊中主动 @ 琪琪"),
-                        new Field("高级聊天", "指定群已启用上下文与自然接话"),
+                        new Field("自动接话", "暂时关闭，仅响应主动 @"),
                         new Field("复读", "所有群均可用"),
                         new Field("主人", "宇崎崎")
                 ),

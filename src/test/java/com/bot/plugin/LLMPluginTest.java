@@ -11,6 +11,13 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class LLMPluginTest {
 
     @Test
+    void autoChatRequiresBothGlobalSwitchAndAdvancedGroup() {
+        assertFalse(LLMPlugin.shouldRunAutoChat(false, true));
+        assertFalse(LLMPlugin.shouldRunAutoChat(true, false));
+        assertFalse(LLMPlugin.shouldRunAutoChat(false, false));
+        assertTrue(LLMPlugin.shouldRunAutoChat(true, true));
+    }
+    @Test
     void filtersKfcSpamButKeepsRealDiscussion() {
         assertTrue(LLMPlugin.isAutoChatNoise("KFC KFC KFC"));
         assertTrue(LLMPlugin.isAutoChatNoise("疯狂星期四，V我50"));

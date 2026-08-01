@@ -56,4 +56,6 @@ typst:
 
 # 聊天档案与群语录均保存在工作目录的 data 下。
 chat:
+  # 关闭后只保留主动 @ 聊天和群复读，不收集上下文、不调用自动接话模型。
+  auto-chat-enabled: false
   state-file: data/chat-profiles.json

@@ -20,6 +20,7 @@ import com.mikuac.shiro.dto.event.message.GroupMessageEvent;
 import com.mikuac.shiro.dto.event.message.PrivateMessageEvent;
 import com.mikuac.shiro.enums.AtEnum;
 import jakarta.annotation.Resource;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
@@ -40,7 +41,7 @@ import java.util.regex.Pattern;
 /**
  * 琪琪的聊天入口。
  *
- * <p>主动 @ 在所有群可用；群上下文和自动接话只在配置好的高级群启用，复读在所有群启用。
+ * <p>主动 @ 和复读在所有群可用；自动接话由配置总开关控制，当前默认关闭。
  * 会话使用“群 + 用户”复合键，同一个人在不同群里的记忆和好感度不会串线。</p>
  */
 @Component
@@ -86,6 +87,9 @@ public class LLMPlugin extends BotPlugin {
     @Resource
     private BotProperties botProperties;
 
+    @Value("${chat.auto-chat-enabled:false}")
+    private boolean autoChatEnabled;
+
     /** 每个群独立保留一小段公开聊天，用于自然插话。 */
     private final Map<Long, Deque<String>> groupContexts = new ConcurrentHashMap<>();
 
@@ -115,7 +119,7 @@ public class LLMPlugin extends BotPlugin {
     }
 
     /**
-     * 所有群都参与复读判断；只有高级群继续记录上下文并自动接话。
+     * 所有群都参与复读判断；只有总开关开启时，高级群才继续记录上下文并自动接话。
      */
     @GroupMessageHandler
     public void groupChat(Bot bot, GroupMessageEvent event) {
@@ -136,7 +140,7 @@ public class LLMPlugin extends BotPlugin {
             bot.sendGroupMsg(groupId, MsgUtils.builder().text(message).build(), false);
             return;
         }
-        if (!isAdvancedGroup(groupId)) {
+        if (!shouldRunAutoChat(autoChatEnabled, isAdvancedGroup(groupId))) {
             return;
         }
         if (isAutoChatNoise(message)) {
@@ -295,6 +299,11 @@ public class LLMPlugin extends BotPlugin {
             return response.trim();
         }
         return owner ? "主人，琪琪刚才走神了一小下，再说一次好不好？" : "抱歉，琪琪刚才没听清，可以再说一次吗？";
+    }
+
+    /** 自动接话必须同时通过全局开关和高级群范围判断。 */
+    static boolean shouldRunAutoChat(boolean enabled, boolean advancedGroup) {
+        return enabled && advancedGroup;
     }
 
     /**
